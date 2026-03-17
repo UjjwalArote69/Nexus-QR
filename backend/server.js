@@ -10,7 +10,7 @@ import { Server as SocketIOServer } from 'socket.io';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '.env') });
+dotenv.config();
 
 import { connectDB, sequelize } from './config/db.js';
 import logger from './config/logger.js';
