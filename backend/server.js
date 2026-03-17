@@ -41,7 +41,7 @@ const httpServer = createServer(app);
 // Socket.io setup
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: process.env.FRONTEND_URL || 'https://qrmeka-two.vercel.app/',
     credentials: true,
   },
 });
