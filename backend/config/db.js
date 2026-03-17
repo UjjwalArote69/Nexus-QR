@@ -6,7 +6,7 @@ import logger from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '..', '.env') });
+dotenv.config();
 
 const sequelize = new Sequelize(
     process.env.DB_NAME,
