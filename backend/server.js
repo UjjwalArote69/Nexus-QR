@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
 
 // Security & Parsing
 app.use(helmet());
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -101,6 +101,16 @@ const PORT = process.env.PORT || 5000;
 
 connectDB();
 
-sequelize.sync({ alter: true }).then(() => {
+const syncOptions = process.env.NODE_ENV === 'production' 
+  ? { alter: false } 
+  : { alter: false };  // safe for both environments
+
+sequelize.sync(syncOptions).then(() => {
   httpServer.listen(PORT, () => logger.info(`NexusQR Server running on port ${PORT}`));
+}).catch((err) => {
+  console.error('=== DATABASE SYNC ERROR ===');
+  console.error('Message:', err.message);
+  console.error('SQL:', err.sql);
+  console.error('Original:', err.original?.message);
+  process.exit(1);
 });
