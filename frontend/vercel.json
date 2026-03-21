@@ -1,5 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/q/:shortId", "destination": "https://nexusqr-api.onrender.com/q/:shortId" }
-  ]
-}

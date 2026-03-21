@@ -1,46 +1,54 @@
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
-import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// Create uploads directory if it doesn't exist
+const uploadsDir = join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-// Configure Storage
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    // 1. Explicitly handle PDFs
-    if (file.mimetype === 'application/pdf') {
-      return {
-        folder: 'nexusqr_uploads',
-        format: 'pdf', 
-        resource_type: 'image', 
-      };
-    }
-    
-    // 2. NEW: Explicitly handle Videos / audio
-    if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/')) {
-      return {
-        folder: 'nexusqr_uploads',
-        resource_type: 'video', // Cloudinary requires 'video' for audio files too!
-        allowed_formats: ['mp4', 'webm', 'mov', 'ogg', 'mp3', 'wav', 'mpeg'] // Added mp3, wav
-      };
-    }
-    
-    // 3. Handle standard Images
-    return {
-      folder: 'nexusqr_uploads',
-      allowed_formats: ['png', 'jpg', 'jpeg', 'webp'],
-      resource_type: 'image'
-    };
+// Configure local disk storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    // Generate unique filename: timestamp-randomhex.extension
+    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+    const ext = path.extname(file.originalname);
+    cb(null, `${uniqueSuffix}${ext}`);
   },
 });
 
-export const upload = multer({ storage: storage });
+// File filter — allow images, PDFs, videos, and audio
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = [
+    // Images
+    'image/png', 'image/jpg', 'image/jpeg', 'image/webp',
+    // PDFs
+    'application/pdf',
+    // Videos
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg',
+    // Audio
+    'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3',
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`File type ${file.mimetype} is not allowed`), false);
+  }
+};
+
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+});

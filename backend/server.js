@@ -39,9 +39,10 @@ const app = express();
 const httpServer = createServer(app);
 
 // Socket.io setup
+const socketOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'https://qrmeka-two.vercel.app/',
+    origin: socketOrigin,
     credentials: true,
   },
 });
@@ -65,9 +66,14 @@ io.on('connection', (socket) => {
   });
 });
 
-// Security & Parsing
-app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+// Security & Parsing — cors() must come before helmet() so preflight
+// requests aren't blocked by helmet's restrictive default headers.
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({ origin: allowedOrigin, credentials: true }));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: false,
+}));
 app.use(express.json());
 app.use(cookieParser());
 
