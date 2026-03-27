@@ -197,7 +197,8 @@ export const createQRWithFile = async (req, res) => {
       return res.status(400).json({ success: false, message: "No file uploaded or file upload failed." });
     }
 
-    const targetUrl = req.file.path;
+    const baseUrl = process.env.BASE_URL || "http://localhost:5000";
+    const targetUrl = `${baseUrl}/uploads/${req.file.filename}`;
     const shortId = crypto.randomBytes(4).toString("hex");
 
     const newQR = await QRCode.create({
@@ -208,7 +209,6 @@ export const createQRWithFile = async (req, res) => {
       targetUrl,
     });
 
-    const baseUrl = process.env.BASE_URL || "http://localhost:5000";
     const qrLink = `${baseUrl}/q/${shortId}`;
 
     logger.info('QR code with file created', { userId, qrId: newQR.id, qrType, shortId });

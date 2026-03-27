@@ -77,6 +77,9 @@ app.use(helmet({
 app.use(express.json());
 app.use(cookieParser());
 
+// Serve uploaded files
+app.use('/uploads', express.static(join(__dirname, 'uploads')));
+
 // HTTP request logging
 app.use(requestLogger);
 
