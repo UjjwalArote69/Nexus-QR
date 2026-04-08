@@ -15,7 +15,8 @@ const SocialProfile = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/qrcodes/public/${shortId}`);
+        const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+        const response = await axios.get(`${apiBase}/qrcodes/public/${shortId}`);
         if (response.data.success) {
           setData(response.data.data.content); // { profile, socials }
         }

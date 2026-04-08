@@ -10,17 +10,12 @@ import {
   Navigate,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { Loader2 } from "lucide-react";
 
-// Store & Wrapper (Keep these synchronous as they are needed immediately)
+// Store & Wrapper
 import useAuthStore from "./store/authStore";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import { FullPageLoader } from "./components/layout/Loader";
-import CreateQRView from "./pages/Dashboard/views/CreateQRView";
-import MyQRCodesView from "./pages/Dashboard/views/MyQRCodesView";
-import StatisticsView from "./pages/Dashboard/views/StatisticsView";
-import TemplatesView from "./pages/Dashboard/views/TemplatesView";
-import SettingsView from "./pages/Dashboard/views/SettingsView";
+import ErrorBoundary from "./components/ui/ErrorBoundary";
 import VCardProfile from './pages/Public/VCardProfile';
 import LinksProfile from "./pages/Public/LinksProfile";
 import SocialProfile from "./pages/Public/SocialProfile";
@@ -29,7 +24,10 @@ import CouponProfile from "./pages/Public/CouponProfile";
 import AppStoreProfile from "./pages/Public/AppStoreProfile";
 import LandingProfile from "./pages/Public/LandingProfile";
 
-// Lazy Load Pages (Code Splitting)
+// Lazy Load Pages
+const HomePage = lazy(
+  () => import("./pages/HomePage"),
+);
 const LandingPage = lazy(
   () => import("./pages/LandingPage"),
 );
@@ -40,8 +38,19 @@ const Register = lazy(
   () => import("./pages/Register"),
 );
 const Dashboard = lazy(
-  () =>
-    import("./pages/Dashboard/Dashboard"),
+  () => import("./pages/Dashboard/Dashboard"),
+);
+const ForgotPassword = lazy(
+  () => import("./pages/ForgotPassword"),
+);
+const ResetPassword = lazy(
+  () => import("./pages/ResetPassword"),
+);
+const VerifyEmail = lazy(
+  () => import("./pages/VerifyEmail"),
+);
+const NotFound = lazy(
+  () => import("./pages/NotFound"),
 );
 
 const App = () => {
@@ -70,14 +79,25 @@ const App = () => {
         }}
       />
 
-      {/* Suspense wrapper catches the lazy-loaded components */}
-      <Suspense
-        fallback={<FullPageLoader />}
-      >
+      <ErrorBoundary>
+      <Suspense fallback={<FullPageLoader />}>
         <Routes>
-          <Route path="/" element={<LandingPage/>}/>
-          <Route path="/login" element={<Login/>}/>
-          <Route path="/register" element={<Register/>}/>
+          {/* Homepage IS the QR builder */}
+          <Route path="/" element={<HomePage />} />
+
+          {/* Marketing / About page (old landing page) */}
+          <Route path="/about" element={<LandingPage />} />
+
+          {/* Redirect old /create to homepage since builder is now at / */}
+          <Route path="/create" element={<Navigate to="/" replace />} />
+
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+
+          {/* Public QR profile pages */}
           <Route path="/vcard/:shortId" element={<VCardProfile />} />
           <Route path="/links/:shortId" element={<LinksProfile />} />
           <Route path="/social/:shortId" element={<SocialProfile />} />
@@ -85,55 +105,22 @@ const App = () => {
           <Route path="/coupon/:shortId" element={<CouponProfile />} />
           <Route path="/app/:shortId" element={<AppStoreProfile />} />
           <Route path="/landing/:shortId" element={<LandingProfile />} />
+
+          {/* Protected Dashboard routes */}
           <Route
-            path="/dashboard"
+            path="/dashboard/*"
             element={
               <ProtectedRoute>
                 <Dashboard />
               </ProtectedRoute>
             }
-          >
-            {/* Default route redirects to create */}
-            <Route
-              index
-              element={
-                <Navigate
-                  to="create"
-                  replace
-                />
-              }
-            />
+          />
 
-            {/* Nested Routes */}
-            <Route
-              path="create"
-              element={<CreateQRView />}
-            />
-            <Route
-              path="library"
-              element={
-                <MyQRCodesView />
-              }
-            />
-            <Route
-              path="statistics"
-              element={
-                <StatisticsView />
-              }
-            />
-            <Route
-              path="templates"
-              element={
-                <TemplatesView />
-              }
-            />
-            <Route
-              path="settings"
-              element={<SettingsView />}
-            />
-          </Route>
+          {/* 404 catch-all */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Router>
   );
 };

@@ -20,7 +20,11 @@ const TemplatePicker = () => {
     setActiveId(template.id);
     setFgColor(template.fgColor);
     setBgColor(template.bgColor);
-    try { await applyTemplate(template.id); } catch {}
+    // Only call the API if the user is authenticated (avoid silent 401s)
+    const token = localStorage.getItem('token');
+    if (token) {
+      try { await applyTemplate(template.id); } catch {}
+    }
   };
 
   return (

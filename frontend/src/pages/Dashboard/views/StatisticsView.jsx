@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import AnimatedPage from '../../../components/ui/AnimatedPage';
 import { SkeletonKPI, SkeletonChart } from '../../../components/ui/Skeleton';
+import usePageTitle from '../../../hooks/usePageTitle';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -39,10 +40,14 @@ const PERIODS = [
   { label: 'Last 7 Days', value: '7d' },
   { label: 'Last 30 Days', value: '30d' },
   { label: 'Last 90 Days', value: '90d' },
+  { label: 'Custom Range', value: 'custom' },
 ];
 
 const StatisticsView = ({ onViewQRAnalytics }) => {
+  usePageTitle('Statistics');
   const [period, setPeriod] = useState('7d');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState({ totalScans: 0, uniqueVisitors: 0, activeCampaigns: 0, scansTrend: 0, uniqueTrend: 0 });
   const [timeseries, setTimeseries] = useState([]);
@@ -50,15 +55,29 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
   const [geo, setGeo] = useState([]);
   const [topCampaigns, setTopCampaigns] = useState([]);
 
+  const exportCSV = () => {
+    const rows = [['Date', 'Scans'], ...timeseries.map(d => [d.date, d.scans])];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-${period}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true);
+    const from = period === 'custom' ? customFrom : undefined;
+    const to = period === 'custom' ? customTo : undefined;
     try {
       const [ov, ts, dv, ge, tc] = await Promise.all([
-        fetchOverview(period),
-        fetchTimeseries(period),
-        fetchDevices(period),
-        fetchGeo(period),
-        fetchTopCampaigns(period),
+        fetchOverview(period, from, to),
+        fetchTimeseries(period, from, to),
+        fetchDevices(period, from, to),
+        fetchGeo(period, from, to),
+        fetchTopCampaigns(period, from, to),
       ]);
       setOverview(ov.data);
       setTimeseries(ts.data);
@@ -70,7 +89,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, customFrom, customTo]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -211,8 +230,28 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
+            <button onClick={exportCSV} disabled={loading || timeseries.length === 0}
+              className="p-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 text-xs font-medium px-3"
+            >
+              CSV
+            </button>
           </div>
         </div>
+
+        {/* Custom Date Range */}
+        {period === 'custom' && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 text-sm" />
+            <span className="text-slate-400 text-sm">to</span>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 text-sm" />
+            <button onClick={loadData} disabled={!customFrom || !customTo}
+              className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-black rounded-lg text-sm font-medium disabled:opacity-50">
+              Apply
+            </button>
+          </div>
+        )}
 
         {/* KPI Cards Row */}
         {isInitialLoad ? (

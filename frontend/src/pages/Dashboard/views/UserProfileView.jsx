@@ -9,8 +9,10 @@ import { updateProfile, changePassword, deleteAccount } from '../../../api/auth.
 import { fetchMyQRCodes } from '../../../api/qrcode.api';
 import AnimatedPage from '../../../components/ui/AnimatedPage';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
+import usePageTitle from '../../../hooks/usePageTitle';
 
 const UserProfileView = () => {
+  usePageTitle('Profile');
   const { user, logout, checkAuth } = useAuthStore();
 
   // Profile form
@@ -25,6 +27,9 @@ const UserProfileView = () => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
+
+  // Logout confirmation
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Delete account
   const [deletePassword, setDeletePassword] = useState('');
@@ -138,7 +143,7 @@ const UserProfileView = () => {
             </p>
           </div>
           <button
-            onClick={logout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="inline-flex items-center space-x-2 px-4 py-2 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg transition-all text-sm font-semibold"
           >
             <LogOut className="w-4 h-4" />
@@ -330,6 +335,16 @@ const UserProfileView = () => {
           </div>
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        open={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => { logout(); window.location.href = '/'; }}
+        title="Sign out?"
+        message="Are you sure you want to sign out of your account?"
+        confirmText="Sign Out"
+      />
 
       {/* Delete Account Modal */}
       <ConfirmModal

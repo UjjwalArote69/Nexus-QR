@@ -33,17 +33,17 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     address: ''
   });
   
-  const [openSection, setOpenSection] = useState('content');
+  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
 
   useEffect(() => {
-    if (builderStep === 2) setOpenSection('content');
-    if (builderStep === 3) setOpenSection('design');
+    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
+    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
   }, [builderStep]);
 
   useEffect(() => {
     if (onLiveUpdate) {
       onLiveUpdate({ 
-        url: 'https://nexusqr.com/preview-vcard', 
+        url: 'https://klink.com/preview-vcard', 
         fgColor, 
         bgColor, 
         title 
@@ -51,9 +51,8 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     }
   }, [contactData, fgColor, bgColor, title]);
 
-  const handleSectionToggle = (sectionName, stepNumber) => {
-    setOpenSection(sectionName);
-    setBuilderStep(stepNumber);
+  const toggleSection = (section) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleChange = (e) => {
@@ -63,22 +62,27 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setError(null);
+
     if (!contactData.firstName || !contactData.phone) {
       setError("First Name and Phone Number are required.");
-      handleSectionToggle('content', 2);
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
 
-    // 3. Call the store's action to save it to the backend
+    if (!contactData.email) {
+      setError("Adding an email address is strongly recommended for a useful vCard.");
+      // Don't return — allow submission, just warn
+    }
+
     const result = await createQRCode({
       title: title || `${contactData.firstName}'s vCard`,
-      qrType: 'vCard Plus', 
-      content: contactData, 
+      qrType: 'vCard Plus',
+      content: contactData,
     });
 
     if (result.success) {
-      // For dynamic QRs, we pass the tracking link to the generator
+      setContactData({ firstName: '', lastName: '', phone: '', email: '', company: '', jobTitle: '', website: '', address: '' });
       onGenerated(result.qrLink);
     }
   };
@@ -98,7 +102,7 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
         {error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
             <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
@@ -107,10 +111,10 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         )}
 
         {/* SECTION 1: CONTENT */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'content' ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('content', 2)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('content')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'content' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Contact className="w-5 h-5" />
               </div>
               <div>
@@ -118,10 +122,10 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Enter details for your digital card</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'content' ? 'rotate-180 text-emerald-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-emerald-500' : ''}`} />
           </button>
           
-          {openSection === 'content' && (
+          {openSections.content && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-4 animate-in slide-in-from-top-2 duration-200">
               
               {/* Name Row */}
@@ -194,10 +198,10 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 2: DESIGN */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'design' ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('design', 3)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('design')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'design' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Palette className="w-5 h-5" />
               </div>
               <div>
@@ -205,10 +209,10 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Customize colors</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'design' ? 'rotate-180 text-emerald-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-emerald-500' : ''}`} />
           </button>
           
-          {openSection === 'design' && (
+          {openSections.design && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <TemplatePicker />
               <div className="grid grid-cols-2 gap-4">
@@ -232,10 +236,10 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 3: SETTINGS */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'settings' ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('settings', 3)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('settings')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'settings' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Settings2 className="w-5 h-5" />
               </div>
               <div>
@@ -243,10 +247,10 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Name your campaign</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'settings' ? 'rotate-180 text-emerald-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-emerald-500' : ''}`} />
           </button>
           
-          {openSection === 'settings' && (
+          {openSections.settings && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
@@ -254,7 +258,8 @@ const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                   type="text" 
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., John's Work Profile" 
+                  maxLength={100}
+                  placeholder="e.g., John's Work Profile"
                   className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-sm"
                 />
               </div>

@@ -1,21 +1,60 @@
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import QRCode from "../models/qrcode.model.js";
 import ScanEvent from "../models/scanEvent.model.js";
 import geoip from "geoip-lite";
 import { UAParser } from "ua-parser-js";
 import logger from "../config/logger.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+
+// Helper: delete uploaded file if the QR's targetUrl points to a local upload
+function cleanupUploadedFile(targetUrl) {
+  if (!targetUrl) return;
+  const baseUrl = process.env.BASE_URL || "http://localhost:5000";
+  if (targetUrl.startsWith(`${baseUrl}/uploads/`)) {
+    const filename = targetUrl.replace(`${baseUrl}/uploads/`, '');
+    const filePath = path.join(uploadsDir, filename);
+    fs.unlink(filePath, (err) => {
+      if (err && err.code !== 'ENOENT') {
+        logger.error('File cleanup failed', { filePath, error: err.message });
+      } else if (!err) {
+        logger.debug('Uploaded file cleaned up', { filePath });
+      }
+    });
+  }
+}
+
+
 export const createQRCode = async (req, res) => {
   try {
     const { title, qrType, targetUrl, content } = req.body;
-    const userId = req.user.id;
+    const userId = req.userId || null;
 
-    const shortId = crypto.randomBytes(4).toString("hex");
+    const { description, expiresAt, maxScans, customSlug } = req.body;
 
-    const { description, expiresAt, maxScans } = req.body;
+    // Support custom slugs — validate format and uniqueness
+    let shortId;
+    if (customSlug) {
+      if (!/^[a-zA-Z0-9_-]{3,50}$/.test(customSlug)) {
+        return res.status(400).json({ success: false, message: "Custom slug must be 3-50 characters (letters, numbers, hyphens, underscores)." });
+      }
+      const existing = await QRCode.findOne({ where: { shortId: customSlug } });
+      if (existing) {
+        return res.status(409).json({ success: false, message: "This custom slug is already taken." });
+      }
+      shortId = customSlug;
+    } else {
+      shortId = crypto.randomBytes(4).toString("hex");
+    }
 
     const newQR = await QRCode.create({
       userId,
+      sessionToken: req.sessionToken || null,
       title: title || "Untitled QR",
       qrType,
       shortId,
@@ -33,8 +72,56 @@ export const createQRCode = async (req, res) => {
 
     res.status(201).json({ success: true, data: newQR, qrLink });
   } catch (error) {
-    logger.error("QR code creation failed", { userId: req.user?.id, error: error.message });
+    logger.error("QR code creation failed", { userId: req.userId || null, error: error.message });
     res.status(500).json({ success: false, message: "Failed to generate QR code." });
+  }
+};
+
+export const claimQRCodes = async (req, res) => {
+  try {
+    const { sessionToken } = req.body;
+    const userId = req.userId; // From JWT auth middleware
+ 
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Must be authenticated to claim QR codes.',
+      });
+    }
+ 
+    if (!sessionToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session token is required.',
+      });
+    }
+ 
+    // Transfer all QR codes with this session token to the user
+    const [claimedCount] = await QRCode.update(
+      { userId, sessionToken: null },
+      { where: { sessionToken, userId: null } }
+    );
+ 
+    // Also transfer any uploaded files (if you track uploads separately)
+    // Uncomment if you have a separate uploads table:
+    // await Upload.update(
+    //   { userId, sessionToken: null },
+    //   { where: { sessionToken, userId: null } }
+    // );
+ 
+    return res.status(200).json({
+      success: true,
+      claimed: claimedCount,
+      message: claimedCount > 0
+        ? `${claimedCount} QR code(s) added to your account.`
+        : 'No unclaimed QR codes found for this session.',
+    });
+  } catch (error) {
+    console.error('Claim QR Codes Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to claim QR codes.',
+    });
   }
 };
 
@@ -124,12 +211,33 @@ export const redirectQR = async (req, res) => {
 export const getUserQRCodes = async (req, res) => {
   try {
     const userId = req.user.id;
-    const qrCodes = await QRCode.findAll({
-      where: { userId },
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+    const includeArchived = req.query.archived === 'true';
+
+    const where = { userId };
+    if (!includeArchived) {
+      where.isArchived = false;
+    }
+
+    const { count, rows } = await QRCode.findAndCountAll({
+      where,
       order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
-    res.status(200).json({ success: true, data: qrCodes });
+    res.status(200).json({
+      success: true,
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      },
+    });
   } catch (error) {
     logger.error("Fetch QR codes failed", { userId: req.user?.id, error: error.message });
     res.status(500).json({ success: false, message: "Failed to fetch QR codes." });
@@ -178,6 +286,7 @@ export const deleteQRCode = async (req, res) => {
       return res.status(404).json({ success: false, message: "QR Code not found or unauthorized." });
     }
 
+    cleanupUploadedFile(qrCode.targetUrl);
     await qrCode.destroy();
     logger.info('QR code deleted', { userId, qrId: id });
 
@@ -191,18 +300,20 @@ export const deleteQRCode = async (req, res) => {
 export const createQRWithFile = async (req, res) => {
   try {
     const { title, qrType } = req.body;
-    const userId = req.user.id;
+    const userId = req.userId || null;
 
-    if (!req.file || !req.file.path) {
+    if (!req.file) {
       return res.status(400).json({ success: false, message: "No file uploaded or file upload failed." });
     }
 
     const baseUrl = process.env.BASE_URL || "http://localhost:5000";
     const targetUrl = `${baseUrl}/uploads/${req.file.filename}`;
+
     const shortId = crypto.randomBytes(4).toString("hex");
 
     const newQR = await QRCode.create({
       userId,
+      sessionToken: req.sessionToken || null,
       title: title || "Untitled Document QR",
       qrType,
       shortId,
@@ -215,7 +326,7 @@ export const createQRWithFile = async (req, res) => {
 
     res.status(201).json({ success: true, data: newQR, qrLink });
   } catch (error) {
-    logger.error("QR code with file creation failed", { userId: req.user?.id, error: error.message });
+    logger.error("QR code with file creation failed", { userId: req.userId || null, error: error.message });
     res.status(500).json({ success: false, message: "Failed to generate file QR code." });
   }
 };
@@ -282,6 +393,10 @@ export const batchDelete = async (req, res) => {
       return res.status(400).json({ success: false, message: "No QR code IDs provided." });
     }
 
+    // Cleanup uploaded files before deleting records
+    const qrsToDelete = await QRCode.findAll({ where: { id: ids, userId }, attributes: ['targetUrl'] });
+    qrsToDelete.forEach(qr => cleanupUploadedFile(qr.targetUrl));
+
     const deleted = await QRCode.destroy({ where: { id: ids, userId } });
     logger.info('Batch delete QR codes', { userId, count: deleted });
 
@@ -295,6 +410,9 @@ export const batchDelete = async (req, res) => {
 export const getRecentScans = async (req, res) => {
   try {
     const userId = req.user.id;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
 
     const userQRs = await QRCode.findAll({
       where: { userId },
@@ -304,11 +422,11 @@ export const getRecentScans = async (req, res) => {
     const qrIds = userQRs.map(q => q.id);
 
     if (qrIds.length === 0) {
-      return res.json({ success: true, data: [] });
+      return res.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0 } });
     }
 
     const { Op } = await import('sequelize');
-    const scans = await ScanEvent.findAll({
+    const { count, rows: scans } = await ScanEvent.findAndCountAll({
       where: { qrCodeId: { [Op.in]: qrIds } },
       include: [{
         model: QRCode,
@@ -316,7 +434,8 @@ export const getRecentScans = async (req, res) => {
         attributes: ['title', 'shortId', 'qrType'],
       }],
       order: [['scannedAt', 'DESC']],
-      limit: 20,
+      limit,
+      offset,
     });
 
     res.json({
@@ -333,10 +452,74 @@ export const getRecentScans = async (req, res) => {
         deviceType: s.deviceType,
         scannedAt: s.scannedAt,
       })),
+      pagination: {
+        page,
+        limit,
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      },
     });
   } catch (error) {
     logger.error("Recent scans fetch failed", { userId: req.user?.id, error: error.message });
     res.status(500).json({ success: false, message: "Failed to fetch recent scans." });
+  }
+};
+
+export const archiveQRCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const qrCode = await QRCode.findOne({ where: { id, userId } });
+    if (!qrCode) {
+      return res.status(404).json({ success: false, message: "QR Code not found." });
+    }
+
+    qrCode.isArchived = !qrCode.isArchived;
+    await qrCode.save();
+
+    logger.info(`QR code ${qrCode.isArchived ? 'archived' : 'restored'}`, { userId, qrId: id });
+    res.json({ success: true, data: { isArchived: qrCode.isArchived }, message: qrCode.isArchived ? 'QR code archived' : 'QR code restored' });
+  } catch (error) {
+    logger.error("Archive QR code failed", { userId: req.user?.id, error: error.message });
+    res.status(500).json({ success: false, message: "Failed to archive QR code." });
+  }
+};
+
+export const bulkCreateQRCodes = async (req, res) => {
+  try {
+    const { items } = req.body;
+    const userId = req.user.id;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Items array is required." });
+    }
+    if (items.length > 100) {
+      return res.status(400).json({ success: false, message: "Maximum 100 QR codes per batch." });
+    }
+
+    const baseUrl = process.env.BASE_URL || "http://localhost:5000";
+    const results = [];
+
+    for (const item of items) {
+      const shortId = crypto.randomBytes(4).toString("hex");
+      const newQR = await QRCode.create({
+        userId,
+        title: item.title || "Untitled QR",
+        qrType: item.qrType || "Website",
+        shortId,
+        targetUrl: item.targetUrl || item.url || null,
+        content: item.content ? JSON.stringify(item.content) : null,
+        description: item.description || null,
+      });
+      results.push({ ...newQR.toJSON(), qrLink: `${baseUrl}/q/${shortId}` });
+    }
+
+    logger.info('Bulk QR codes created', { userId, count: results.length });
+    res.status(201).json({ success: true, data: results, count: results.length });
+  } catch (error) {
+    logger.error("Bulk QR creation failed", { userId: req.user?.id, error: error.message });
+    res.status(500).json({ success: false, message: "Failed to create QR codes." });
   }
 };
 

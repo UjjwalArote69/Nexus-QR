@@ -12,7 +12,8 @@ const LinksProfile = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/qrcodes/public/${shortId}`);
+        const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+        const response = await axios.get(`${apiBase}/qrcodes/public/${shortId}`);
         if (response.data.success) {
           setData(response.data.data.content); // Extract { profile, links }
         }
@@ -80,8 +81,8 @@ const LinksProfile = () => {
         </div>
 
         <div className="mt-12 text-center">
-          <a href="https://nexusqr.com" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-400 hover:text-fuchsia-500 transition-colors uppercase tracking-widest">
-            Powered by NexusQR
+          <a href="https://klink.com" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-400 hover:text-fuchsia-500 transition-colors uppercase tracking-widest">
+            Powered by Klink
           </a>
         </div>
 

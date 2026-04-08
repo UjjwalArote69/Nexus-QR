@@ -4,7 +4,11 @@ import ScanEvent from '../models/scanEvent.model.js';
 import QRCode from '../models/qrcode.model.js';
 import logger from '../config/logger.js';
 
-function getDateRange(period) {
+function getDateRange(period, fromDate, toDate) {
+  // Support custom date ranges via from/to query params
+  if (period === 'custom' && fromDate && toDate) {
+    return { start: new Date(fromDate), end: new Date(toDate + 'T23:59:59.999Z') };
+  }
   const now = new Date();
   const start = new Date(now);
   switch (period) {
@@ -20,8 +24,8 @@ function getDateRange(period) {
 export const getOverview = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period = '7d' } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '7d', from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     const userQRs = await QRCode.findAll({
       where: { userId },
@@ -77,8 +81,8 @@ export const getOverview = async (req, res) => {
 export const getTimeseries = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period = '7d' } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '7d', from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     const userQRs = await QRCode.findAll({
       where: { userId },
@@ -123,8 +127,8 @@ export const getTimeseries = async (req, res) => {
 export const getDeviceBreakdown = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period = '7d' } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '7d', from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     const userQRs = await QRCode.findAll({
       where: { userId },
@@ -173,8 +177,8 @@ export const getDeviceBreakdown = async (req, res) => {
 export const getGeoBreakdown = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period = '7d' } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '7d', from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     const userQRs = await QRCode.findAll({
       where: { userId },
@@ -221,8 +225,8 @@ export const getQRAnalytics = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { period = '7d' } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '7d', from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     const qrCode = await QRCode.findOne({ where: { id, userId } });
     if (!qrCode) {
@@ -345,8 +349,8 @@ export const getQRAnalytics = async (req, res) => {
 export const getHeatmapData = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period = '30d', qrId } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '30d', qrId, from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     let qrIds;
     if (qrId) {
@@ -394,8 +398,8 @@ export const getHeatmapData = async (req, res) => {
 export const getTopCampaigns = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period = '7d' } = req.query;
-    const { start, end } = getDateRange(period);
+    const { period = '7d', from, to } = req.query;
+    const { start, end } = getDateRange(period, from, to);
 
     const userQRs = await QRCode.findAll({
       where: { userId },

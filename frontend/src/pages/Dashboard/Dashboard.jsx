@@ -1,5 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react-hooks/immutability */
+/* eslint-disable no-unused-vars */
+/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-refresh/only-export-components */
-import { useState, Suspense, lazy, createContext } from "react";
+import { useState, Suspense, lazy, useEffect } from "react";
 import useAuthStore from "../../store/authStore";
 import useScanNotifications from "../../hooks/useScanNotifications";
 import { AnimatePresence, motion } from "framer-motion";
@@ -7,9 +11,13 @@ import Sidebar from "../../components/layout/Sidebar";
 import Topbar from "../../components/layout/Topbar";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { ContainerLoader } from "../../components/layout/Loader";
+import useQRStore from "../../store/qrStore";
 
-// 1. Create Context to share builder state with the Topbar and Forms
-export const BuilderContext = createContext();
+// Import the shared BuilderContext and re-export for backward compatibility
+// (all form components import { BuilderContext } from '../../Dashboard')
+import BuilderContext from "../../context/BuilderContext";
+import { useLocation, useSearchParams } from 'react-router-dom';
+export { BuilderContext };
 
 // Lazy Load Dashboard Views
 const CreateQRView = lazy(() => import("./views/CreateQRView"));
@@ -32,7 +40,21 @@ const ViewLoader = () => (
 
 const Dashboard = () => {
   const user = useAuthStore((s) => s.user);
+  const resetStore = useQRStore((s) => s.resetStore);
   useScanNotifications(user?.id);
+
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+useEffect(() => {
+  const viewParam = searchParams.get('view');
+  if (viewParam === 'create') {
+    setActiveNav('Create QR');
+    // Clean up the URL so it doesn't re-trigger on re-renders
+    searchParams.delete('view');
+    setSearchParams(searchParams, { replace: true });
+  }
+}, []);
 
   const [activeNav, setActiveNav] = useState("Home");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -64,34 +86,58 @@ const Dashboard = () => {
     }
   };
 
+  useEffect(() => {
+  if (location.state?.activeNav) {
+    setActiveNav(location.state.activeNav);
+    // Clean up the state so refreshing doesn't re-trigger
+    window.history.replaceState({}, '');
+  }
+}, [location.state]);
+
+  // Breadcrumb helper for non-Home views
+  const Breadcrumb = ({ label }) => (
+    <div className="flex items-center gap-1.5 text-sm">
+      <button
+        onClick={() => setActiveNav("Home")}
+        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition-colors"
+      >
+        Dashboard
+      </button>
+      <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600" />
+      <span className="font-semibold text-slate-900 dark:text-white">{label}</span>
+    </div>
+  );
+
   const getTopbarContent = () => {
     switch (activeNav) {
       case "Home":
         return <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Dashboard</h2>;
       case "Create QR":
         return (
-          // Dynamic Clickable Breadcrumbs
           <div className="flex items-center space-x-1 sm:space-x-2 text-[13px] sm:text-sm">
-            <button 
-              onClick={() => { setBuilderStep(1); setSelectedType(null); }}
+            <button
+              onClick={() => setActiveNav("Home")}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition-colors hidden sm:block"
+            >
+              Dashboard
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 hidden sm:block" />
+            <button
+              onClick={() => { resetStore(); setBuilderStep(1); setSelectedType(null); }}
               className={`flex items-center px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all ${builderStep === 1 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
               <span className="hidden sm:inline mr-1">1.</span> Type
             </button>
-            
             <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600" />
-            
-            <button 
+            <button
               onClick={() => selectedType && setBuilderStep(2)}
               disabled={!selectedType}
               className={`flex items-center px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all ${builderStep === 2 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : selectedType ? 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'text-slate-400 dark:text-slate-600 opacity-50 cursor-not-allowed'}`}
             >
               <span className="hidden sm:inline mr-1">2.</span> Content
             </button>
-            
             <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600" />
-            
-            <button 
+            <button
               onClick={() => selectedType && setBuilderStep(3)}
               disabled={!selectedType}
               className={`flex items-center px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all ${builderStep === 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : selectedType ? 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'text-slate-400 dark:text-slate-600 opacity-50 cursor-not-allowed'}`}
@@ -100,16 +146,20 @@ const Dashboard = () => {
             </button>
           </div>
         );
-      case "My QR Codes": return <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Library</h2>;
-      case "Help Center": return <h2 className="text-lg font-semibold text-slate-900 dark:text-white text-sm">Help & Docs</h2>;
-      case "Contact": return <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Get in Touch</h2>;
-      case "Settings": return <h2 className="text-lg font-semibold text-slate-900 dark:text-white">General Settings</h2>;
-      default: return <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{activeNav}</h2>;
+      case "My QR Codes": return <Breadcrumb label="Library" />;
+      case "QR Analytics": return <Breadcrumb label="QR Analytics" />;
+      case "Statistics": return <Breadcrumb label="Statistics" />;
+      case "Templates": return <Breadcrumb label="Templates" />;
+      case "Plans & Payments": return <Breadcrumb label="Plans & Payments" />;
+      case "User Profile": return <Breadcrumb label="User Profile" />;
+      case "Help Center": return <Breadcrumb label="Help & Docs" />;
+      case "Contact": return <Breadcrumb label="Get in Touch" />;
+      case "Settings": return <Breadcrumb label="General Settings" />;
+      default: return <Breadcrumb label={activeNav} />;
     }
   };
 
   return (
-    // Wrap the app in the Context Provider
     <BuilderContext.Provider value={{ builderStep, setBuilderStep, selectedType, setSelectedType }}>
       <div className="flex h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden selection:bg-slate-200 dark:selection:bg-slate-700/50 transition-colors duration-300">
         <Sidebar

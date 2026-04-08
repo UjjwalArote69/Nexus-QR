@@ -4,10 +4,12 @@ import {
   MessageCircle, FileText, ChevronDown, ExternalLink 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import usePageTitle from '../../../hooks/usePageTitle';
 
 const HelpCenterView = () => {
+  usePageTitle('Help Center');
   const categories = [
-    { title: 'Getting Started', desc: 'New to NexusQR? Start here to create your first code.', icon: Zap },
+    { title: 'Getting Started', desc: 'New to Klink? Start here to create your first code.', icon: Zap },
     { title: 'Dynamic vs Static', desc: 'Understand the difference between our QR types.', icon: Book },
     { title: 'Analytics & Tracking', desc: 'How to interpret your scan data and reports.', icon: LifeBuoy },
     { title: 'Security & Privacy', desc: 'Managing JWT tokens and workspace isolation.', icon: Shield },

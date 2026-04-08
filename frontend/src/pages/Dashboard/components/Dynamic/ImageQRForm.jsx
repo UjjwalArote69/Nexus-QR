@@ -1,8 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import useQRStore from '../../../../store/qrStore'; 
-import { createQRWithFile } from '../../../../api/qrcode.api';
-import { BuilderContext } from '../../Dashboard'; 
+import useQRStore from '../../../../store/qrStore';
+import { BuilderContext } from '../../Dashboard';
 import { 
   ArrowLeft, Image as ImageIcon, AlertCircle, UploadCloud, 
   Settings2, Palette, ChevronDown, Check, X, Link as LinkIcon
@@ -18,7 +17,7 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     fgColor, setFgColor, 
     bgColor, setBgColor, 
     isLoading, error, setError,
-    createQRCode // Used for the 'URL' mode
+    createQRCode, createQRWithFileAction
   } = useQRStore();
 
   // 2. Keep ONLY type-specific state local
@@ -26,25 +25,24 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   const [previewUrl, setPreviewUrl] = useState(null); 
   const [imageUrl, setImageUrl] = useState(''); 
   const [uploadMode, setUploadMode] = useState('file'); 
-  const [openSection, setOpenSection] = useState('content');
+  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (builderStep === 2) setOpenSection('content');
-    if (builderStep === 3) setOpenSection('design');
+    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
+    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
   }, [builderStep]);
 
   // Live preview updates
   useEffect(() => {
     if (onLiveUpdate) {
-      const displayUrl = imageUrl || (file ? 'https://nexusqr.com/preview-image' : '');
+      const displayUrl = imageUrl || (file ? 'https://klink.com/preview-image' : '');
       onLiveUpdate({ url: displayUrl, fgColor, bgColor, title });
     }
   }, [file, imageUrl, fgColor, bgColor, title]);
 
-  const handleSectionToggle = (sectionName, stepNumber) => {
-    setOpenSection(sectionName);
-    setBuilderStep(stepNumber);
+  const toggleSection = (section) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleFileChange = (e) => {
@@ -67,7 +65,15 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     }
   };
 
+  // Cleanup object URL on unmount or when preview changes
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const clearFile = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -78,44 +84,34 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     
     if (uploadMode === 'file' && !file) {
       setError("Please upload an image file");
-      handleSectionToggle('content', 2);
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
     if (uploadMode === 'url' && !imageUrl) {
       setError("Please enter an image URL");
-      handleSectionToggle('content', 2);
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
 
-    // Note: Since 'file' mode requires FormData, we handle it directly here 
-    // while still using the store's error/loading state.
     setError(null);
-    // You would typically set isLoading(true) in the store here if not using an action
-    
-    try {
-      let result;
 
-      if (uploadMode === 'file') {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('title', title || 'My Image QR');
-        formData.append('qrType', 'Images'); 
-        
-        result = await createQRWithFile(formData);
-      } else {
-        // Use the centralized store action for the URL mode
-        result = await createQRCode({
-          title: title || 'My Image QR',
-          qrType: 'Images',
-          targetUrl: imageUrl,
-        });
-      }
+    let result;
 
-      if (result.success) {
-        onGenerated(result.qrLink);
-      }
-    } catch (err) {
-      setError(err.message || "Something went wrong!");
+    if (uploadMode === 'file') {
+      result = await createQRWithFileAction(file, title || 'My Image QR', 'Images');
+    } else {
+      result = await createQRCode({
+        title: title || 'My Image QR',
+        qrType: 'Images',
+        targetUrl: imageUrl,
+      });
+    }
+
+    if (result.success) {
+      setFile(null);
+      setPreviewUrl(null);
+      setImageUrl('');
+      onGenerated(result.qrLink);
     }
   };
 
@@ -134,7 +130,7 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
         {error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
             <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
@@ -143,10 +139,10 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         )}
 
         {/* SECTION 1: CONTENT */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'content' ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('content', 2)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('content')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'content' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <ImageIcon className="w-5 h-5" />
               </div>
               <div>
@@ -154,10 +150,10 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Upload your image</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'content' ? 'rotate-180 text-indigo-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-indigo-500' : ''}`} />
           </button>
           
-          {openSection === 'content' && (
+          {openSections.content && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               
               <div className="flex p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg w-full max-w-sm">
@@ -239,10 +235,10 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 2: DESIGN */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'design' ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('design', 3)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('design')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'design' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Palette className="w-5 h-5" />
               </div>
               <div>
@@ -250,10 +246,10 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Customize colors</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'design' ? 'rotate-180 text-indigo-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-indigo-500' : ''}`} />
           </button>
           
-          {openSection === 'design' && (
+          {openSections.design && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <TemplatePicker />
               <div className="grid grid-cols-2 gap-4">
@@ -277,10 +273,10 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 3: SETTINGS */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'settings' ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('settings', 3)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('settings')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'settings' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Settings2 className="w-5 h-5" />
               </div>
               <div>
@@ -288,10 +284,10 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Name your campaign</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'settings' ? 'rotate-180 text-indigo-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-indigo-500' : ''}`} />
           </button>
           
-          {openSection === 'settings' && (
+          {openSections.settings && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
@@ -299,6 +295,7 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                   type="text" 
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  maxLength={100}
                   placeholder="e.g., Spring Promo Flyer" 
                   className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
                 />

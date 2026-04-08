@@ -1,8 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import useQRStore from '../../../../store/qrStore'; // <-- Added store import
-import { createQRWithFile } from '../../../../api/qrcode.api';
-import { BuilderContext } from '../../Dashboard'; 
+import useQRStore from '../../../../store/qrStore';
+import { BuilderContext } from '../../Dashboard';
 import { 
   ArrowLeft, Video as VideoIcon, AlertCircle, UploadCloud, 
   Settings2, Palette, ChevronDown, Check, X, Link as LinkIcon, Youtube
@@ -18,7 +17,7 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     fgColor, setFgColor, 
     bgColor, setBgColor, 
     isLoading, error, setError,
-    createQRCode // Used for the 'URL' mode
+    createQRCode, createQRWithFileAction
   } = useQRStore();
 
   // 2. Keep ONLY type-specific state local
@@ -26,25 +25,24 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [videoUrl, setVideoUrl] = useState(''); 
   const [uploadMode, setUploadMode] = useState('url'); 
-  const [openSection, setOpenSection] = useState('content');
+  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (builderStep === 2) setOpenSection('content');
-    if (builderStep === 3) setOpenSection('design');
+    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
+    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
   }, [builderStep]);
 
   // Sync Live Preview upwards
   useEffect(() => {
     if (onLiveUpdate) {
-      const displayUrl = videoUrl || (file ? 'https://nexusqr.com/preview-video' : '');
+      const displayUrl = videoUrl || (file ? 'https://klink.com/preview-video' : '');
       onLiveUpdate({ url: displayUrl, fgColor, bgColor, title });
     }
   }, [file, videoUrl, fgColor, bgColor, title]);
 
-  const handleSectionToggle = (sectionName, stepNumber) => {
-    setOpenSection(sectionName);
-    setBuilderStep(stepNumber);
+  const toggleSection = (section) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleFileChange = (e) => {
@@ -67,7 +65,15 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     }
   };
 
+  // Cleanup object URL on unmount or when preview changes
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const clearFile = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -78,43 +84,34 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     
     if (uploadMode === 'file' && !file) {
       setError("Please upload a video file");
-      handleSectionToggle('content', 2);
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
     if (uploadMode === 'url' && !videoUrl) {
       setError("Please enter a video URL");
-      handleSectionToggle('content', 2);
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
 
     setError(null);
 
-    try {
-      let result;
+    let result;
 
-      if (uploadMode === 'file') {
-        // Build FormData for physical file upload
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('title', title || 'My Video QR');
-        formData.append('qrType', 'Video');
-        
-        // Direct file API usage while relying on store for status management
-        result = await createQRWithFile(formData);
-      } else {
-        // Centralized store action for the YouTube/Link mode
-        result = await createQRCode({
-          title: title || 'My Video QR',
-          qrType: 'Video',
-          targetUrl: videoUrl,
-        });
-      }
+    if (uploadMode === 'file') {
+      result = await createQRWithFileAction(file, title || 'My Video QR', 'Video');
+    } else {
+      result = await createQRCode({
+        title: title || 'My Video QR',
+        qrType: 'Video',
+        targetUrl: videoUrl,
+      });
+    }
 
-      if (result.success) {
-        onGenerated(result.qrLink);
-      }
-    } catch (err) {
-      setError(err.message || "Something went wrong! Are you logged in?");
+    if (result.success) {
+      setFile(null);
+      setPreviewUrl(null);
+      setVideoUrl('');
+      onGenerated(result.qrLink);
     }
   };
 
@@ -132,7 +129,7 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
         {error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
             <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
@@ -141,10 +138,10 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         )}
 
         {/* SECTION 1: CONTENT */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'content' ? 'border-rose-500 shadow-md ring-1 ring-rose-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('content', 2)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-rose-500 shadow-md ring-1 ring-rose-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('content')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'content' ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <VideoIcon className="w-5 h-5" />
               </div>
               <div>
@@ -152,10 +149,10 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Link or upload a video</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'content' ? 'rotate-180 text-rose-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-rose-500' : ''}`} />
           </button>
           
-          {openSection === 'content' && (
+          {openSections.content && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               
               <div className="flex p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg w-full max-w-sm">
@@ -242,10 +239,10 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 2: DESIGN */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'design' ? 'border-rose-500 shadow-md ring-1 ring-rose-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('design', 3)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-rose-500 shadow-md ring-1 ring-rose-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('design')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'design' ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Palette className="w-5 h-5" />
               </div>
               <div>
@@ -253,10 +250,10 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Customize colors</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'design' ? 'rotate-180 text-rose-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-rose-500' : ''}`} />
           </button>
           
-          {openSection === 'design' && (
+          {openSections.design && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <TemplatePicker />
               <div className="grid grid-cols-2 gap-4">
@@ -264,14 +261,14 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Color</label>
                   <div className="flex items-center gap-2">
                     <input type="color" value={fgColor} onChange={(e) => setFgColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                    <input type="text" value={fgColor} onChange={(e) => setFgColor(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
+                    <input type="text" value={fgColor} onChange={(e) => { const v = e.target.value; if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setFgColor(v); }} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Background</label>
                   <div className="flex items-center gap-2">
                     <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                    <input type="text" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
+                    <input type="text" value={bgColor} onChange={(e) => { const v = e.target.value; if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setBgColor(v); }} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
                   </div>
                 </div>
               </div>
@@ -280,10 +277,10 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 3: SETTINGS */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'settings' ? 'border-rose-500 shadow-md ring-1 ring-rose-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => handleSectionToggle('settings', 3)} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-rose-500 shadow-md ring-1 ring-rose-500' : 'border-slate-200 dark:border-slate-800'}`}>
+          <button type="button" onClick={() => toggleSection('settings')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'settings' ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Settings2 className="w-5 h-5" />
               </div>
               <div>
@@ -291,10 +288,10 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Name your campaign</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'settings' ? 'rotate-180 text-rose-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-rose-500' : ''}`} />
           </button>
           
-          {openSection === 'settings' && (
+          {openSections.settings && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
@@ -302,6 +299,7 @@ const VideoQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                   type="text" 
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  maxLength={100}
                   placeholder="e.g., Product Demo Video" 
                   className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 outline-none transition-all shadow-sm"
                 />

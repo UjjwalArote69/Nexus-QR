@@ -22,12 +22,12 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   
   // 2. Keep ONLY type-specific state local
   const [text, setText] = useState('');
-  const [openSection, setOpenSection] = useState('content');
+  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
 
   // Sync Accordions to Topbar Clicks
   useEffect(() => {
-    if (builderStep === 2) setOpenSection('content');
-    if (builderStep === 3) setOpenSection('design');
+    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
+    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
   }, [builderStep]);
 
   // Sync Live Preview upwards
@@ -37,27 +37,28 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     }
   }, [text, fgColor, bgColor, title]);
 
-  const handleSectionToggle = (sectionName, stepNumber) => {
-    setOpenSection(sectionName);
-    setBuilderStep(stepNumber);
+  const toggleSection = (section) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+
     if (!text) {
-      setError("Please enter some text");
-      handleSectionToggle('content', 2);
+      setError("Please enter some text.");
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
-    
-    // 3. Call the store's action instead of the API directly
+
     const result = await createQRCode({
       title: title || 'My Text QR',
       qrType: 'Text',
-      content: text, 
+      content: text,
     });
 
     if (result.success) {
+      setText('');
       onGenerated(text);
     }
   };
@@ -79,7 +80,7 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
         {error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
             <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
@@ -88,14 +89,14 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         )}
 
         {/* SECTION 1: CONTENT (Uses local 'text' state) */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'content' ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
           <button 
             type="button"
-            onClick={() => handleSectionToggle('content', 2)}
+            onClick={() => toggleSection('content')}
             className="w-full flex items-center justify-between p-5 text-left bg-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'content' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Type className="w-5 h-5" />
               </div>
               <div>
@@ -103,10 +104,10 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Enter the text to display</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'content' ? 'rotate-180 text-blue-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-blue-500' : ''}`} />
           </button>
           
-          {openSection === 'content' && (
+          {openSections.content && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Your Text <span className="text-red-500">*</span></label>
@@ -123,14 +124,14 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 2: DESIGN (Uses store 'fgColor' and 'bgColor' state) */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'design' ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
           <button 
             type="button"
-            onClick={() => handleSectionToggle('design', 3)}
+            onClick={() => toggleSection('design')}
             className="w-full flex items-center justify-between p-5 text-left bg-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'design' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Palette className="w-5 h-5" />
               </div>
               <div>
@@ -138,10 +139,10 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Customize colors</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'design' ? 'rotate-180 text-blue-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-blue-500' : ''}`} />
           </button>
           
-          {openSection === 'design' && (
+          {openSections.design && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <TemplatePicker />
               <div className="grid grid-cols-2 gap-4">
@@ -165,14 +166,14 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 3: SETTINGS (Uses store 'title' state) */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'settings' ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
           <button 
             type="button"
-            onClick={() => handleSectionToggle('settings', 3)}
+            onClick={() => toggleSection('settings')}
             className="w-full flex items-center justify-between p-5 text-left bg-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'settings' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Settings2 className="w-5 h-5" />
               </div>
               <div>
@@ -180,10 +181,10 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Name your code</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'settings' ? 'rotate-180 text-blue-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-blue-500' : ''}`} />
           </button>
           
-          {openSection === 'settings' && (
+          {openSections.settings && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
@@ -191,6 +192,7 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                   type="text" 
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  maxLength={100}
                   placeholder="e.g., Welcome Message" 
                   className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
                 />
@@ -207,7 +209,10 @@ const TextQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
           className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
         >
           {isLoading ? (
-            <span className="animate-spin -ml-1 mr-2 h-5 w-5 text-white">...</span>
+            <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
           ) : (
             <Check className="w-5 h-5" />
           )}

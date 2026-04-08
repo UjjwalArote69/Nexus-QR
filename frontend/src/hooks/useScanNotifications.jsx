@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 
@@ -7,20 +7,26 @@ const SOCKET_URL = import.meta.env.VITE_BACKEND_URL?.replace('/api', '') || 'htt
 
 const useScanNotifications = (userId) => {
   const socketRef = useRef(null);
+  const tokenRef = useRef(null);
 
-  useEffect(() => {
-    if (!userId) return;
+  const connectSocket = useCallback((token) => {
+    // Disconnect existing socket if any
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
 
     const socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
     });
 
     socketRef.current = socket;
-
-    socket.on('connect', () => {
-      socket.emit('join', userId);
-    });
+    tokenRef.current = token;
 
     socket.on('scan', (data) => {
       const location = [data.city, data.country].filter(Boolean).join(', ') || 'Unknown location';
@@ -59,11 +65,34 @@ const useScanNotifications = (userId) => {
       );
     });
 
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
+    return socket;
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    connectSocket(token);
+
+    // Reconnect with new token if it changes (e.g. after refresh)
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' && e.newValue && e.newValue !== tokenRef.current) {
+        connectSocket(e.newValue);
+      }
     };
-  }, [userId]);
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, [userId, connectSocket]);
 
   return socketRef;
 };

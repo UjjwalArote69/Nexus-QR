@@ -2,33 +2,54 @@
 
 import  { useState,  } from 'react';
 import { motion } from 'framer-motion';
-import { QrCode, Mail, Lock, ArrowRight, Sun, Moon } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { QrCode, Mail, Lock, ArrowRight, Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
 import  useTheme  from '../hooks/useTheme';
+import usePageTitle from '../hooks/usePageTitle';
 
 const Login = () => {
+  usePageTitle('Login');
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login,  } = useAuthStore();
+  const { login } = useAuthStore();
   const navigate = useNavigate();
-
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const { isDark, toggleTheme } = useTheme();
 
- const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = await login(formData);
-    
-    if (result.success) {
-    // Add the success toast here
-    toast.success('Successfully logged in!');
-    navigate('/dashboard'); 
-  } else {
-    // Optional: You can also show errors as a toast!
-    toast.error('Invalid email or password');
-  }
+    setIsSubmitting(true);
+    try {
+      const result = await login(formData);
+
+      if (result.success) {
+        if (rememberMe) {
+          localStorage.setItem('rememberMe', 'true');
+        } else {
+          localStorage.removeItem('rememberMe');
+        }
+        setFormData({ email: '', password: '' });
+        toast.success('Successfully logged in!');
+        navigate(redirectTo);
+      } else {
+        toast.error('Invalid email or password');
+      }
+    } catch (err) {
+      if (err?.response?.status === 429) {
+        toast.error('Too many login attempts. Please try again later.');
+      } else {
+        toast.error('Invalid email or password');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -56,7 +77,7 @@ const Login = () => {
           <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700/50 group-hover:border-slate-300 dark:group-hover:border-slate-500 transition-colors">
             <QrCode className="w-6 h-6 text-slate-900 dark:text-white transition-colors" />
           </div>
-          <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white transition-colors">NexusQR</span>
+          <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white transition-colors">Klink</span>
         </Link>
         <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900 dark:text-white transition-colors">
           Welcome back
@@ -109,13 +130,20 @@ const Login = () => {
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-400 transition-colors sm:text-sm"
+                  className="block w-full pl-10 pr-10 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-400 transition-colors sm:text-sm"
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -126,6 +154,8 @@ const Login = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-slate-400 focus:ring-offset-white dark:focus:ring-offset-slate-950 transition-colors"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-600 dark:text-slate-400 transition-colors">
@@ -134,19 +164,20 @@ const Login = () => {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors">
+                <Link to="/forgot-password" className="font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors">
                   Forgot your password?
-                </a>
+                </Link>
               </div>
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full flex justify-center items-center space-x-2 py-2.5 px-4 border border-transparent rounded-lg shadow-md dark:shadow-[0_0_15px_rgba(255,255,255,0.1)] text-sm font-semibold text-white dark:text-black bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 focus:ring-slate-900 dark:focus:ring-white transition-all"
+              disabled={isSubmitting}
+              className="w-full flex justify-center items-center space-x-2 py-2.5 px-4 border border-transparent rounded-lg shadow-md dark:shadow-[0_0_15px_rgba(255,255,255,0.1)] text-sm font-semibold text-white dark:text-black bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 focus:ring-slate-900 dark:focus:ring-white transition-all disabled:opacity-50"
             >
-              <span>Sign in</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>{isSubmitting ? 'Signing in...' : 'Sign in'}</span>
+              {!isSubmitting && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
 
@@ -157,7 +188,7 @@ const Login = () => {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white dark:bg-slate-900 text-slate-500 transition-colors">
-                  New to NexusQR?
+                  New to Klink?
                 </span>
               </div>
             </div>

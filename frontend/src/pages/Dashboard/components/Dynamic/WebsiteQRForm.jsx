@@ -14,12 +14,15 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   const { builderStep, setBuilderStep } = useContext(BuilderContext);
   
   // 1. Pull common state and actions from the store
-  const { 
-    title, setTitle, 
-    fgColor, setFgColor, 
-    bgColor, setBgColor, 
+  const {
+    title, setTitle,
+    fgColor, setFgColor,
+    bgColor, setBgColor,
+    dotStyle, setDotStyle,
+    cornerSquareStyle, setCornerSquareStyle,
+    logoDataUrl, setLogo,
     isLoading, error, setError,
-    createQRCode 
+    createQRCode
   } = useQRStore();
 
   // 2. Keep ONLY type-specific state local
@@ -28,36 +31,42 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   const [description, setDescription] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [maxScans, setMaxScans] = useState('');
-  const [openSection, setOpenSection] = useState('content');
+  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
 
   // Sync Accordions to Topbar Clicks
   useEffect(() => {
-    if (builderStep === 2) setOpenSection('content');
-    if (builderStep === 3) setOpenSection('design');
+    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
+    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
   }, [builderStep]);
 
   // Sync Live Preview upwards whenever content or design changes
   useEffect(() => {
     if (onLiveUpdate) {
-      onLiveUpdate({ url, fgColor, bgColor, title });
+      onLiveUpdate({ url, fgColor, bgColor, title, dotStyle, cornerSquareStyle, logoDataUrl });
     }
-  }, [url, fgColor, bgColor, title]);
+  }, [url, fgColor, bgColor, title, dotStyle, cornerSquareStyle, logoDataUrl]);
 
   // Sync Topbar to Accordion Clicks
-  const handleSectionToggle = (sectionName, stepNumber) => {
-    setOpenSection(sectionName);
-    setBuilderStep(stepNumber);
+  const toggleSection = (section) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+
     if (!url) {
-      setError("Please enter a destination URL");
-      handleSectionToggle('content', 2);
+      setError("Please enter a destination URL.");
+      setOpenSections(prev => ({ ...prev, content: true }));
       return;
     }
 
-    // 3. Call the store's action instead of the API directly
+    try { new URL(url); } catch {
+      setError("Please enter a valid URL (e.g., https://example.com).");
+      setOpenSections(prev => ({ ...prev, content: true }));
+      return;
+    }
+
     const result = await createQRCode({
       title: title || 'My Website QR',
       qrType: 'Website',
@@ -68,7 +77,11 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     });
 
     if (result.success) {
-      // For dynamic QRs, we pass the tracking link to the generator
+      setUrl('');
+      setUtmUrl('');
+      setDescription('');
+      setExpiresAt('');
+      setMaxScans('');
       onGenerated(result.qrLink);
     }
   };
@@ -90,7 +103,7 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
         {error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
             <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
@@ -99,14 +112,14 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         )}
 
         {/* SECTION 1: CONTENT */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'content' ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
           <button 
             type="button"
-            onClick={() => handleSectionToggle('content', 2)}
+            onClick={() => toggleSection('content')}
             className="w-full flex items-center justify-between p-5 text-left bg-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'content' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <LinkIcon className="w-5 h-5" />
               </div>
               <div>
@@ -114,10 +127,10 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Enter the destination URL</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'content' ? 'rotate-180 text-blue-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-blue-500' : ''}`} />
           </button>
           
-          {openSection === 'content' && (
+          {openSections.content && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Destination URL <span className="text-red-500">*</span></label>
@@ -138,14 +151,14 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
         </div>
 
         {/* SECTION 2: DESIGN */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'design' ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
           <button 
             type="button"
-            onClick={() => handleSectionToggle('design', 3)}
+            onClick={() => toggleSection('design')}
             className="w-full flex items-center justify-between p-5 text-left bg-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'design' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Palette className="w-5 h-5" />
               </div>
               <div>
@@ -153,10 +166,10 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Customize colors and shapes</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'design' ? 'rotate-180 text-blue-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-blue-500' : ''}`} />
           </button>
           
-          {openSection === 'design' && (
+          {openSections.design && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
 
               <TemplatePicker />
@@ -200,19 +213,62 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 </div>
               </div>
 
+              {/* Dot Shape */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Dot Shape</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['square', 'dots', 'rounded', 'extra-rounded', 'classy', 'classy-rounded'].map(s => (
+                    <button key={s} type="button" onClick={() => setDotStyle(s)}
+                      className={`px-2 py-1.5 text-xs font-medium rounded-lg border transition-all capitalize ${dotStyle === s ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
+                      {s.replace('-', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Corner Shape */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Corner Shape</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['square', 'dot', 'extra-rounded'].map(s => (
+                    <button key={s} type="button" onClick={() => setCornerSquareStyle(s)}
+                      className={`px-2 py-1.5 text-xs font-medium rounded-lg border transition-all capitalize ${cornerSquareStyle === s ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
+                      {s.replace('-', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Logo Upload */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Center Logo</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:border-blue-400 transition-colors text-sm text-slate-500">
+                    <input type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
+                    {logoDataUrl ? 'Change logo' : 'Upload logo'}
+                  </label>
+                  {logoDataUrl && (
+                    <div className="relative">
+                      <img src={logoDataUrl} alt="Logo" className="w-10 h-10 rounded-lg object-contain border border-slate-200 dark:border-slate-700" />
+                      <button type="button" onClick={() => setLogo(null)} className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">x</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
         </div>
 
         {/* SECTION 3: SETTINGS */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSection === 'settings' ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
+        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-blue-500 shadow-md ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-800'}`}>
           <button 
             type="button"
-            onClick={() => handleSectionToggle('settings', 3)}
+            onClick={() => toggleSection('settings')}
             className="w-full flex items-center justify-between p-5 text-left bg-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSection === 'settings' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 <Settings2 className="w-5 h-5" />
               </div>
               <div>
@@ -220,10 +276,10 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                 <p className="text-xs text-slate-500 mt-0.5">Name, limits & scheduling</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSection === 'settings' ? 'rotate-180 text-blue-500' : ''}`} />
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-blue-500' : ''}`} />
           </button>
           
-          {openSection === 'settings' && (
+          {openSections.settings && (
             <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
@@ -231,6 +287,7 @@ const WebsiteQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  maxLength={100}
                   placeholder="e.g., Summer Campaign"
                   className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
                 />

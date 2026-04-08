@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import { create } from 'zustand';
 import { loginUser, registerUser, fetchProfile } from '../api/auth.api';
+import { clearSessionToken } from '../utils/sessionToken';
 
 const useAuthStore = create((set) => ({
   user: null,
@@ -17,20 +18,21 @@ const useAuthStore = create((set) => ({
     try {
       const data = await loginUser(credentials);
       
-      // Save to localStorage
+      // Save to localStorage and clear anonymous session token
       localStorage.setItem('token', data.token);
-      
-      set({ 
-        user: data.user, 
+      clearSessionToken();
+
+      set({
+        user: data.user,
         token: data.token,
-        isAuthenticated: true, 
-        isLoading: false 
+        isAuthenticated: true,
+        isLoading: false
       });
       return { success: true };
     } catch (error) {
-      set({ 
-        error: error.response?.data?.message || 'Login failed. Please try again.', 
-        isLoading: false 
+      set({
+        error: error.response?.data?.message || 'Login failed. Please try again.',
+        isLoading: false
       });
       return { success: false };
     }
@@ -40,15 +42,16 @@ const useAuthStore = create((set) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await registerUser(userData);
-      
-      // Save to localStorage
-      localStorage.setItem('token', data.token);
 
-      set({ 
-        user: data.user, 
+      // Save to localStorage and clear anonymous session token
+      localStorage.setItem('token', data.token);
+      clearSessionToken();
+
+      set({
+        user: data.user,
         token: data.token,
-        isAuthenticated: true, 
-        isLoading: false 
+        isAuthenticated: true,
+        isLoading: false
       });
       return { success: true };
     } catch (error) {
@@ -84,5 +87,20 @@ const useAuthStore = create((set) => ({
     set({ user: null, token: null, isAuthenticated: false });
   }
 }));
+
+// Sync auth state across browser tabs
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'token') {
+      if (!e.newValue) {
+        // Token was removed in another tab — log out here too
+        useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
+      } else {
+        // Token was set in another tab — re-check auth
+        useAuthStore.getState().checkAuth();
+      }
+    }
+  });
+}
 
 export default useAuthStore;

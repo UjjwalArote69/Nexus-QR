@@ -10,8 +10,10 @@ import { fetchMyQRCodes, fetchRecentScans } from '../../../api/qrcode.api';
 import { fetchOverview } from '../../../api/analytics.api';
 import AnimatedPage from '../../../components/ui/AnimatedPage';
 import { SkeletonKPI } from '../../../components/ui/Skeleton';
+import usePageTitle from '../../../hooks/usePageTitle';
 
 const HomeView = ({ onNavigate }) => {
+  usePageTitle('Dashboard');
   const { user } = useAuthStore();
   const [stats, setStats] = useState(null);
   const [recentScans, setRecentScans] = useState([]);

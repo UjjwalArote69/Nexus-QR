@@ -23,7 +23,7 @@ export const Spinner = ({ size = 'md', className = '', text = '' }) => {
 };
 
 // 2. Full Page Loader (Perfect for App.jsx and ProtectedRoute.jsx)
-export const FullPageLoader = ({ text = 'Loading NexusQR...' }) => {
+export const FullPageLoader = ({ text = 'Loading Klink...' }) => {
   return (
     <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center transition-colors duration-300">
       <Spinner size="lg" text={text} />

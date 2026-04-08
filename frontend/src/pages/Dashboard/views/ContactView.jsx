@@ -91,7 +91,7 @@ const ContactView = () => {
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-6">Direct Channels</h3>
               
               <div className="space-y-6">
-                <ContactItem icon={Mail} label="Support Email" value="support@nexusqr.io" />
+                <ContactItem icon={Mail} label="Support Email" value="support@klink.io" />
                 <ContactItem icon={MessageSquare} label="Live Chat" value="Average wait: 5 min" />
                 <ContactItem icon={Globe} label="Headquarters" value="San Francisco, CA" />
               </div>

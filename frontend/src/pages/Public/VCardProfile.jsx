@@ -28,9 +28,10 @@ const VCardProfile = () => {
     const fetchProfile = async () => {
       try {
         // Fetch the public QR data using the route we made earlier
+        const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
         const response =
           await axios.get(
-            `http://localhost:5000/api/qrcodes/public/${shortId}`,
+            `${apiBase}/qrcodes/public/${shortId}`,
           );
         if (response.data.success) {
           setProfile(

@@ -13,6 +13,7 @@ import {
   updateTemplate as updateTemplateAPI,
   deleteTemplate as deleteTemplateAPI,
 } from '../../../api/template.api';
+import usePageTitle from '../../../hooks/usePageTitle';
 import useQRStore from '../../../store/qrStore';
 import AnimatedPage from '../../../components/ui/AnimatedPage';
 import { StaggeredGrid, StaggeredItem } from '../../../components/ui/StaggeredGrid';
@@ -20,6 +21,7 @@ import ConfirmModal from '../../../components/ui/ConfirmModal';
 import { SkeletonCard } from '../../../components/ui/Skeleton';
 
 const TemplatesView = () => {
+  usePageTitle('Templates');
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -210,7 +212,7 @@ const TemplatesView = () => {
                   <div className="h-48 flex items-center justify-center relative border-b border-slate-100 dark:border-slate-800" style={{ backgroundColor: template.bgColor }}>
                     <div className="p-3 bg-white rounded-xl shadow-sm">
                       <QRCodeSVG
-                        value="https://nexusqr.com"
+                        value="https://klink.com"
                         size={96}
                         level="H"
                         fgColor={template.fgColor}
@@ -411,7 +413,7 @@ const TemplatesView = () => {
 
                 <div className="flex items-center justify-center p-6 rounded-xl border border-slate-100 dark:border-slate-800" style={{ backgroundColor: formData.bgColor }}>
                   <QRCodeSVG
-                    value="https://nexusqr.com"
+                    value="https://klink.com"
                     size={120}
                     level="H"
                     fgColor={formData.fgColor}

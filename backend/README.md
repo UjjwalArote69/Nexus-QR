@@ -1,6 +1,6 @@
-# NexusQR Backend
+# Klink Backend
 
-REST API server for the NexusQR platform. Built with Express 5, Sequelize ORM, and Socket.io for real-time scan notifications.
+REST API server for the Klink platform. Built with Express 5, Sequelize ORM, and Socket.io for real-time scan notifications.
 
 ---
 

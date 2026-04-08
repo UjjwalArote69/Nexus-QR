@@ -10,11 +10,11 @@ const QRCode = sequelize.define('QRCode', {
   },
   userId: {
     type: DataTypes.UUID,
-    allowNull: false,
-    references: {
-      model: User,
-      key: 'id'
-    }
+    allowNull: true,
+  },
+  sessionToken: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   title: {
     type: DataTypes.STRING,
@@ -65,10 +65,14 @@ const QRCode = sequelize.define('QRCode', {
     type: DataTypes.UUID,
     allowNull: true,
   },
+  isArchived: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 });
 
-// Setup relationships
-User.hasMany(QRCode, { foreignKey: 'userId', as: 'qrcodes' });
-QRCode.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+// Setup relationships (constraints: false — we manage the FK manually to allow null userId)
+User.hasMany(QRCode, { foreignKey: 'userId', as: 'qrcodes', constraints: false });
+QRCode.belongsTo(User, { foreignKey: 'userId', as: 'user', constraints: false });
 
 export default QRCode;

@@ -8,19 +8,18 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Create uploads directory if it doesn't exist
+// Local uploads directory
 const uploadsDir = join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure local disk storage
+// Local disk storage for multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename: timestamp-randomhex.extension
     const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
     const ext = path.extname(file.originalname);
     cb(null, `${uniqueSuffix}${ext}`);
@@ -30,13 +29,9 @@ const storage = multer.diskStorage({
 // File filter — allow images, PDFs, videos, and audio
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
-    // Images
     'image/png', 'image/jpg', 'image/jpeg', 'image/webp',
-    // PDFs
     'application/pdf',
-    // Videos
     'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg',
-    // Audio
     'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3',
   ];
 

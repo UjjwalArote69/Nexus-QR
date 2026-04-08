@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchMyQRCodes, deleteQRCode, duplicateQRCode, toggleFavorite, batchDeleteQRCodes, updateQRCode } from '../../../api/qrcode.api';
 import { fetchFolders, createFolder, deleteFolder as deleteFolderApi } from '../../../api/folder.api';
@@ -16,8 +17,10 @@ import {
 import AnimatedPage from '../../../components/ui/AnimatedPage';
 import { StaggeredGrid, StaggeredItem } from '../../../components/ui/StaggeredGrid';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
+import usePageTitle from '../../../hooks/usePageTitle';
 
 const MyQRCodesView = ({ onViewAnalytics }) => {
+  usePageTitle('My QR Codes');
   const [qrCodes, setQrCodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,7 +34,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
 
   // Edit Modal
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ title: '', targetUrl: '', description: '', expiresAt: '', maxScans: '' });
+  const [editForm, setEditForm] = useState({ title: '', targetUrl: '', description: '', expiresAt: '', maxScans: '', content: null });
   const [editSaving, setEditSaving] = useState(false);
 
   // Batch Selection
@@ -46,12 +49,16 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
   const [newFolderName, setNewFolderName] = useState('');
   const [showFolderInput, setShowFolderInput] = useState(false);
 
-  // Filter & Search States
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('All');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [sortBy, setSortBy] = useState('newest'); // newest, oldest, most-scans, least-scans
+  // Filter & Search States — restore from sessionStorage so navigating away preserves filters
+  const savedFilters = useMemo(() => {
+    try { return JSON.parse(sessionStorage.getItem('qr_filters')) || {}; }
+    catch { return {}; }
+  }, []);
+  const [searchTerm, setSearchTerm] = useState(savedFilters.searchTerm || '');
+  const [filterType, setFilterType] = useState(savedFilters.filterType || 'All');
+  const [dateFrom, setDateFrom] = useState(savedFilters.dateFrom || '');
+  const [dateTo, setDateTo] = useState(savedFilters.dateTo || '');
+  const [sortBy, setSortBy] = useState(savedFilters.sortBy || 'newest');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const loadQRCodes = async () => {
@@ -59,7 +66,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
     setError(null);
     try {
       const [qrResult, folderResult] = await Promise.all([
-        fetchMyQRCodes(),
+        fetchMyQRCodes({ page: 1, limit: 100 }),
         fetchFolders().catch(() => ({ success: true, data: [] })),
       ]);
       if (qrResult.success) setQrCodes(qrResult.data);
@@ -75,16 +82,30 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
     loadQRCodes();
   }, []);
 
+  // Persist filter state so it survives navigation away and back
+  useEffect(() => {
+    sessionStorage.setItem('qr_filters', JSON.stringify({ searchTerm, filterType, dateFrom, dateTo, sortBy }));
+  }, [searchTerm, filterType, dateFrom, dateTo, sortBy]);
+
   // ── Edit Handlers ──
   const openEditModal = (qr) => {
     setEditTarget(qr);
+    let parsedContent = null;
+    if (qr.content) {
+      try { parsedContent = typeof qr.content === 'string' ? JSON.parse(qr.content) : qr.content; } catch { parsedContent = null; }
+    }
     setEditForm({
       title: qr.title || '',
       targetUrl: qr.targetUrl || '',
       description: qr.description || '',
       expiresAt: qr.expiresAt ? new Date(qr.expiresAt).toISOString().slice(0, 16) : '',
       maxScans: qr.maxScans ?? '',
+      content: parsedContent,
     });
+  };
+
+  const updateContentField = (key, value) => {
+    setEditForm(f => ({ ...f, content: { ...f.content, [key]: value } }));
   };
 
   const handleEditSave = async () => {
@@ -97,6 +118,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
         description: editForm.description || '',
         expiresAt: editForm.expiresAt || null,
         maxScans: editForm.maxScans ? parseInt(editForm.maxScans, 10) : null,
+        content: editForm.content || undefined,
       };
       const result = await updateQRCode(editTarget.id, payload);
       if (result.success) {
@@ -271,7 +293,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
       const url = URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `nexusqr-export-${toExport.length}-codes.zip`;
+      link.download = `klink-export-${toExport.length}-codes.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -391,7 +413,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
         pdf.addImage(imgData, 'PNG', x, y, qrSize, qrSize);
         pdf.setFontSize(10);
         pdf.setTextColor(120);
-        pdf.text('Generated by NexusQR', pageWidth / 2, y + qrSize + 12, { align: 'center' });
+        pdf.text('Generated by Klink', pageWidth / 2, y + qrSize + 12, { align: 'center' });
         pdf.save(`${filename}-qr.pdf`);
       }
       toast.success(`Exported as ${format.toUpperCase()}`);
@@ -736,7 +758,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
               <StaggeredGrid className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredQRCodes.map((qr) => (
                   <StaggeredItem key={qr.id}>
-                    <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col group ${selectedIds.has(qr.id) ? 'border-blue-400 dark:border-blue-600 ring-1 ring-blue-400' : 'border-slate-200 dark:border-slate-800'} ${!qr.isActive ? 'opacity-60' : ''} ${loading ? 'pointer-events-none' : ''}`}>
+                    <div className={`bg-white dark:bg-slate-900 border rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col group ${selectedIds.has(qr.id) ? 'border-blue-400 dark:border-blue-600 ring-1 ring-blue-400' : 'border-slate-200 dark:border-slate-800'} ${!qr.isActive ? 'opacity-60' : ''} ${loading ? 'pointer-events-none' : ''}`}>
 
                       {/* Top Section */}
                       <div className="p-5 flex gap-4 border-b border-slate-100 dark:border-slate-800">
@@ -944,7 +966,7 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
           >
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEditTarget(null)} />
             <motion.div
-              className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-lg p-6 space-y-5"
+              className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-lg p-6 space-y-5 max-h-[85vh] overflow-y-auto"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -986,6 +1008,39 @@ const MyQRCodesView = ({ onViewAnalytics }) => {
                     className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                   />
                 </div>
+                {/* Dynamic content fields based on QR type */}
+                {editForm.content && editTarget && (
+                  <div className="space-y-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{editTarget.qrType} Details</p>
+                    {Object.entries(editForm.content).map(([key, value]) => {
+                      // Skip complex nested objects (like links arrays, socials objects) — render them as simple fields
+                      if (key === 'links' && Array.isArray(value)) return null;
+                      if (key === 'socials' && typeof value === 'object') return null;
+                      if (key === 'profile' && typeof value === 'object') {
+                        return Object.entries(value).map(([pk, pv]) => (
+                          <div key={`profile-${pk}`}>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 capitalize">{pk.replace(/([A-Z])/g, ' $1')}</label>
+                            <input type="text" value={pv || ''}
+                              onChange={(e) => setEditForm(f => ({ ...f, content: { ...f.content, profile: { ...f.content.profile, [pk]: e.target.value } } }))}
+                              className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                          </div>
+                        ));
+                      }
+                      if (typeof value === 'object' && value !== null) return null;
+                      return (
+                        <div key={key}>
+                          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                          <input type="text" value={value || ''}
+                            onChange={(e) => updateContentField(key, e.target.value)}
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Expiry Date</label>

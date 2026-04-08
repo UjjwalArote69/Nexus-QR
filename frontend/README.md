@@ -1,6 +1,6 @@
-# NexusQR Frontend
+# Klink Frontend
 
-React single-page application for the NexusQR platform. Built with React 19, Vite 7, Tailwind CSS 4, and Zustand for state management.
+React single-page application for the Klink platform. Built with React 19, Vite 7, Tailwind CSS 4, and Zustand for state management.
 
 ---
 

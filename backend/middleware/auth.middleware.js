@@ -13,7 +13,11 @@ export const protect = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = await User.findByPk(decoded.id);
+        const user = await User.findByPk(decoded.id);
+        if (!user) {
+            return res.status(401).json({ message: 'User no longer exists' });
+        }
+        req.user = user;
         next();
     } catch (error) {
         logger.warn('JWT verification failed', { ip: req.ip, url: req.originalUrl });
