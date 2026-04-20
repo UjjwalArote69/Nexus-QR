@@ -20,7 +20,16 @@ const User = sequelize.define('User', {
     },
     password: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true  // Nullable for Google OAuth users
+    },
+    googleId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+    },
+    authProvider: {
+        type: DataTypes.ENUM('local', 'google'),
+        defaultValue: 'local',
     },
     isVerified: {
         type: DataTypes.BOOLEAN,
@@ -41,11 +50,12 @@ const User = sequelize.define('User', {
 }, {
     hooks: {
         beforeCreate: async (user) => {
-            user.password = await bcrypt.hash(user.password, 10);
+            if (user.password) {
+                user.password = await bcrypt.hash(user.password, 10);
+            }
         },
         beforeUpdate: async (user) => {
-            // Only hash the password if it has been modified
-            if (user.changed('password')) {
+            if (user.changed('password') && user.password) {
                 user.password = await bcrypt.hash(user.password, 10);
             }
         }
@@ -53,6 +63,7 @@ const User = sequelize.define('User', {
 });
 
 User.prototype.comparePassword = async function (enteredPassword) {
+    if (!this.password) return false; // OAuth users have no password
     return await bcrypt.compare(enteredPassword, this.password);
 };
 

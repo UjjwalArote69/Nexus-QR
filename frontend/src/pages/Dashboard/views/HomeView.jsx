@@ -18,23 +18,34 @@ const HomeView = ({ onNavigate }) => {
   const [stats, setStats] = useState(null);
   const [recentScans, setRecentScans] = useState([]);
   const [recentQRs, setRecentQRs] = useState([]);
+  const [totalQRCount, setTotalQRCount] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // BUG-025 fix: track and surface API failures instead of silently swallowing
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
         const [qrs, overview, scans] = await Promise.all([
           fetchMyQRCodes(),
-          fetchOverview('7d').catch(() => ({ data: { totalScans: 0, uniqueVisitors: 0, activeCampaigns: 0, scansTrend: 0 } })),
-          fetchRecentScans().catch(() => ({ data: [] })),
+          fetchOverview('7d').catch(() => {
+            setLoadError(true);
+            return { data: { totalScans: 0, uniqueVisitors: 0, activeCampaigns: 0, scansTrend: 0 } };
+          }),
+          fetchRecentScans().catch(() => {
+            setLoadError(true);
+            return { data: [] };
+          }),
         ]);
         if (qrs.success) {
+          setTotalQRCount(qrs.pagination?.total ?? qrs.data.length);
           setRecentQRs(qrs.data.slice(0, 5));
         }
         setStats(overview.data);
         setRecentScans(scans.data?.slice(0, 8) || []);
-      } catch (err) {
-        // Gracefully handle
+      } catch {
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -80,6 +91,11 @@ const HomeView = ({ onNavigate }) => {
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Here's what's happening with your QR campaigns.
             </p>
+            {loadError && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Some data couldn't be loaded. Showing partial results.
+              </p>
+            )}
           </div>
           <button
             onClick={() => onNavigate('Create QR')}
@@ -99,7 +115,7 @@ const HomeView = ({ onNavigate }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               title="Total QR Codes"
-              value={recentQRs.length > 0 ? recentQRs.length.toString() : '0'}
+              value={totalQRCount.toString()}
               icon={QrCode}
               color="blue"
               index={0}

@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getProfile, updateProfile, changePassword, deleteAccount, logout, refreshToken, forgotPassword, resetPassword, verifyEmail, resendVerification } from '../controllers/user.controller.js';
+import { register, login, googleLogin, getProfile, updateProfile, changePassword, deleteAccount, logout, refreshToken, forgotPassword, resetPassword, verifyEmail, resendVerification } from '../controllers/user.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { validate, registerSchema, loginSchema } from '../middleware/validator.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -9,6 +9,7 @@ const router = express.Router();
 // Public Routes
 router.post('/register', authLimiter, validate(registerSchema), register);
 router.post('/login', authLimiter, validate(loginSchema), login);
+router.post('/google', authLimiter, googleLogin);
 router.post('/logout', logout);
 router.post('/refresh-token', refreshToken);
 router.post('/forgot-password', authLimiter, forgotPassword);

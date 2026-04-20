@@ -46,17 +46,20 @@ const Dashboard = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
-useEffect(() => {
-  const viewParam = searchParams.get('view');
-  if (viewParam === 'create') {
-    setActiveNav('Create QR');
-    // Clean up the URL so it doesn't re-trigger on re-renders
-    searchParams.delete('view');
-    setSearchParams(searchParams, { replace: true });
-  }
-}, []);
+  const [activeNav, setActiveNav] = useState(() => {
+    // BUG-008 fix: read view param during initialization instead of in a useEffect
+    const viewParam = searchParams.get('view');
+    return viewParam === 'create' ? 'Create QR' : 'Home';
+  });
 
-  const [activeNav, setActiveNav] = useState("Home");
+  // Clean up the view param from the URL after reading it
+  useEffect(() => {
+    if (searchParams.has('view')) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('view');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [analyticsQrId, setAnalyticsQrId] = useState(null);
 
@@ -86,13 +89,15 @@ useEffect(() => {
     }
   };
 
+  // BUG-009 fix: depend on the specific value, not the object reference
+  const activeNavFromState = location.state?.activeNav;
   useEffect(() => {
-  if (location.state?.activeNav) {
-    setActiveNav(location.state.activeNav);
+  if (activeNavFromState) {
+    setActiveNav(activeNavFromState);
     // Clean up the state so refreshing doesn't re-trigger
     window.history.replaceState({}, '');
   }
-}, [location.state]);
+}, [activeNavFromState]);
 
   // Breadcrumb helper for non-Home views
   const Breadcrumb = ({ label }) => (

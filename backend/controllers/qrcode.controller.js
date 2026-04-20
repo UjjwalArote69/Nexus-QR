@@ -7,6 +7,7 @@ import ScanEvent from "../models/scanEvent.model.js";
 import geoip from "geoip-lite";
 import { UAParser } from "ua-parser-js";
 import logger from "../config/logger.js";
+import { sendEmail, isSmtpReady } from "../config/email.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,8 +18,16 @@ function cleanupUploadedFile(targetUrl) {
   if (!targetUrl) return;
   const baseUrl = process.env.BASE_URL || "http://localhost:5000";
   if (targetUrl.startsWith(`${baseUrl}/uploads/`)) {
-    const filename = targetUrl.replace(`${baseUrl}/uploads/`, '');
+    // BUG-002 fix: use path.basename to prevent path traversal attacks
+    const rawFilename = targetUrl.replace(`${baseUrl}/uploads/`, '');
+    const filename = path.basename(rawFilename);
     const filePath = path.join(uploadsDir, filename);
+    // Verify resolved path is still within uploadsDir
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(path.resolve(uploadsDir))) {
+      logger.warn('Path traversal attempt blocked', { targetUrl, resolvedPath });
+      return;
+    }
     fs.unlink(filePath, (err) => {
       if (err && err.code !== 'ENOENT') {
         logger.error('File cleanup failed', { filePath, error: err.message });
@@ -37,12 +46,9 @@ export const createQRCode = async (req, res) => {
 
     const { description, expiresAt, maxScans, customSlug } = req.body;
 
-    // Support custom slugs — validate format and uniqueness
+    // Support custom slugs — validate uniqueness (format validated by schema middleware)
     let shortId;
     if (customSlug) {
-      if (!/^[a-zA-Z0-9_-]{3,50}$/.test(customSlug)) {
-        return res.status(400).json({ success: false, message: "Custom slug must be 3-50 characters (letters, numbers, hyphens, underscores)." });
-      }
       const existing = await QRCode.findOne({ where: { shortId: customSlug } });
       if (existing) {
         return res.status(409).json({ success: false, message: "This custom slug is already taken." });
@@ -81,26 +87,31 @@ export const claimQRCodes = async (req, res) => {
   try {
     const { sessionToken } = req.body;
     const userId = req.userId; // From JWT auth middleware
- 
+
     if (!userId) {
       return res.status(401).json({
         success: false,
         message: 'Must be authenticated to claim QR codes.',
       });
     }
- 
+
     if (!sessionToken) {
       return res.status(400).json({
         success: false,
         message: 'Session token is required.',
       });
     }
- 
-    // Transfer all QR codes with this session token to the user
-    const [claimedCount] = await QRCode.update(
-      { userId, sessionToken: null },
-      { where: { sessionToken, userId: null } }
-    );
+
+    // BUG-004 fix: use transaction to prevent race condition
+    const { sequelize } = await import('../config/db.js');
+    const result = await sequelize.transaction(async (t) => {
+      const [claimedCount] = await QRCode.update(
+        { userId, sessionToken: null },
+        { where: { sessionToken, userId: null }, transaction: t }
+      );
+      return claimedCount;
+    });
+    const claimedCount = result;
  
     // Also transfer any uploaded files (if you track uploads separately)
     // Uncomment if you have a separate uploads table:
@@ -117,7 +128,7 @@ export const claimQRCodes = async (req, res) => {
         : 'No unclaimed QR codes found for this session.',
     });
   } catch (error) {
-    console.error('Claim QR Codes Error:', error);
+    logger.error('Claim QR Codes Error:', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Failed to claim QR codes.',
@@ -201,6 +212,71 @@ export const redirectQR = async (req, res) => {
     if (qrCode.qrType === 'App Store' || qrCode.qrType === 'App') return res.redirect(`${frontendUrl}/app/${shortId}`);
     if (qrCode.qrType === 'Landing page' || qrCode.qrType === 'Landing Page') return res.redirect(`${frontendUrl}/landing/${shortId}`);
 
+    // Email QR: send via SMTP
+    if (qrCode.qrType === 'Email') {
+      // Check SMTP is actually configured
+      if (!isSmtpReady()) {
+        logger.error('Email QR scan but SMTP not configured', { shortId });
+        return res.status(503).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email Unavailable</title></head><body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc"><div style="text-align:center;max-width:360px;padding:24px"><h1 style="color:#0f172a;font-size:20px;margin:0 0 8px">Email Service Unavailable</h1><p style="color:#64748b;font-size:14px;margin:0">The email service is not configured. Please contact the QR code owner.</p></div></body></html>`);
+      }
+
+      try {
+        // Parse email data from content
+        let emailData = null;
+        if (qrCode.content) {
+          try {
+            const parsed = typeof qrCode.content === 'string' ? JSON.parse(qrCode.content) : qrCode.content;
+            // Handle structured content { email, subject, message }
+            if (parsed && typeof parsed === 'object' && parsed.email) {
+              emailData = parsed;
+            }
+          } catch {
+            // Handle old mailto: string format stored in content
+            const raw = typeof qrCode.content === 'string' ? qrCode.content.replace(/^"|"$/g, '') : '';
+            if (raw.startsWith('mailto:')) {
+              try {
+                const url = new URL(raw);
+                const params = new URLSearchParams(url.search);
+                emailData = {
+                  email: url.pathname,
+                  subject: params.get('subject') || '',
+                  message: params.get('body') || '',
+                };
+              } catch { emailData = null; }
+            }
+          }
+        }
+
+        if (!emailData || !emailData.email) {
+          return res.status(400).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Error</title></head><body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc"><div style="text-align:center;padding:24px"><h1 style="color:#0f172a;font-size:20px">Invalid Email QR</h1><p style="color:#64748b;font-size:14px">This QR code is missing email data.</p></div></body></html>`);
+        }
+
+        const safeMessage = (emailData.message || 'No message provided.').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        await sendEmail({
+          to: emailData.email,
+          subject: emailData.subject || 'Message via QR Code',
+          html: `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="color:#0f172a;margin:0 0 16px">New message from QR scan</h2><div style="background:#f8fafc;border-radius:8px;padding:16px;color:#334155;font-size:15px;line-height:1.6;white-space:pre-wrap">${safeMessage}</div><p style="color:#94a3b8;font-size:12px;margin-top:20px">Sent via Klink QR Code</p></div>`,
+        });
+
+        return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email Sent</title></head><body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc"><div style="text-align:center;max-width:360px;padding:24px"><div style="width:56px;height:56px;border-radius:50%;background:#ecfdf5;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="24" height="24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><h1 style="color:#0f172a;font-size:20px;margin:0 0 8px">Email Sent</h1><p style="color:#64748b;font-size:14px;margin:0">Your message has been delivered successfully.</p></div></body></html>`);
+      } catch (emailErr) {
+        logger.error('Email QR send failed', { shortId, error: emailErr.message });
+        return res.status(500).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Error</title></head><body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc"><div style="text-align:center;padding:24px"><h1 style="color:#0f172a;font-size:20px">Email Failed</h1><p style="color:#64748b;font-size:14px">Could not send the email. Please try again later.</p></div></body></html>`);
+      }
+    }
+
+    // Static QR types (sms:, tel:, wifi:) can't use HTTP redirects.
+    // Serve a small HTML page that triggers the native action via JavaScript.
+    const url = qrCode.targetUrl;
+    if (url && /^(sms:|tel:|WIFI:)/i.test(url)) {
+      // HTML attribute context: escape &, ", <, >
+      const htmlEscaped = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // JS string context: escape \, ', </ sequences (& must stay raw for JS)
+      const jsEscaped = url.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/<\//g, '<\\/');
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting...</title></head><body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc"><div style="text-align:center"><p style="color:#64748b;font-size:14px">Opening...</p><a href="${htmlEscaped}" id="link" style="display:inline-block;padding:12px 24px;background:#0f172a;color:#fff;text-decoration:none;border-radius:10px;font-weight:600;font-size:14px">Open now</a></div><script>window.location.href='${jsEscaped}';</script></body></html>`);
+    }
+
     res.redirect(qrCode.targetUrl);
   } catch (error) {
     logger.error("QR redirect failed", { shortId: req.params?.shortId, error: error.message });
@@ -257,7 +333,20 @@ export const updateQRCode = async (req, res) => {
     }
 
     if (title !== undefined) qrCode.title = title;
-    if (targetUrl !== undefined) qrCode.targetUrl = targetUrl;
+    // BUG-013 fix: validate targetUrl if provided
+    if (targetUrl !== undefined) {
+      if (targetUrl && typeof targetUrl === 'string' && targetUrl.trim()) {
+        try {
+          const parsed = new URL(targetUrl);
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return res.status(400).json({ success: false, message: "Target URL must use http or https protocol." });
+          }
+        } catch {
+          return res.status(400).json({ success: false, message: "Invalid target URL format." });
+        }
+      }
+      qrCode.targetUrl = targetUrl;
+    }
     if (isActive !== undefined) qrCode.isActive = isActive;
     if (description !== undefined) qrCode.description = description;
     if (expiresAt !== undefined) qrCode.expiresAt = expiresAt || null;
@@ -538,7 +627,13 @@ export const getPublicQR = async (req, res) => {
 
     let parsedContent = null;
     if (qrCode.content) {
-      parsedContent = typeof qrCode.content === "string" ? JSON.parse(qrCode.content) : qrCode.content;
+      // BUG-003 fix: wrap JSON.parse in try-catch to prevent crash on malformed data
+      try {
+        parsedContent = typeof qrCode.content === "string" ? JSON.parse(qrCode.content) : qrCode.content;
+      } catch (parseErr) {
+        logger.warn("Malformed QR content JSON", { shortId, error: parseErr.message });
+        parsedContent = null;
+      }
     }
 
     res.status(200).json({
@@ -548,5 +643,25 @@ export const getPublicQR = async (req, res) => {
   } catch (error) {
     logger.error("Fetch public QR failed", { shortId: req.params?.shortId, error: error.message });
     res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+
+export const uploadImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image uploaded." });
+    }
+    
+    // Check if the uploaded file has a cloudinary path or local filename
+    const baseUrl = process.env.BASE_URL || "http://localhost:5000";
+    const imageUrl = req.file.path && req.file.path.startsWith('http') 
+      ? req.file.path 
+      : `${baseUrl}/uploads/${req.file.filename}`;
+
+    res.status(200).json({ success: true, imageUrl });
+  } catch (error) {
+    logger.error("Image upload failed", { error: error.message });
+    res.status(500).json({ success: false, message: "Failed to upload image." });
   }
 };

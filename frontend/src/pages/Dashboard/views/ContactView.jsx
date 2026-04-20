@@ -1,10 +1,13 @@
+/* eslint-disable no-unused-vars */
 import React, { useState } from 'react';
 import { 
   Mail, Phone, MapPin, Send, 
   MessageSquare, Globe, Twitter, Github 
 } from 'lucide-react';
+import usePageTitle from '../../../hooks/usePageTitle';
 
 const ContactView = () => {
+  usePageTitle('Contact');
   const [status, setStatus] = useState('idle'); // idle, sending, success
 
   const handleSubmit = (e) => {
@@ -93,7 +96,7 @@ const ContactView = () => {
               <div className="space-y-6">
                 <ContactItem icon={Mail} label="Support Email" value="support@klink.io" />
                 <ContactItem icon={MessageSquare} label="Live Chat" value="Average wait: 5 min" />
-                <ContactItem icon={Globe} label="Headquarters" value="San Francisco, CA" />
+                <ContactItem icon={Globe} label="Headquarters" value="Worli Mumbai, India" />
               </div>
             </div>
 

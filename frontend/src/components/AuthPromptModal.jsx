@@ -11,6 +11,7 @@ import {
   QrCode, Mail, Lock, User, ArrowRight, X, Loader2,
   BarChart3, Pencil, FolderOpen, CheckCircle2,
 } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 import useAuthStore from '../store/authStore';
 import { claimAnonymousQRCodes } from '../api/qrcode.api';
 import { getSessionToken, clearSessionToken } from '../utils/sessionToken';
@@ -21,7 +22,7 @@ const AuthPromptModal = ({ open, onClose, onAuthSuccess }) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
 
-  const { login, register } = useAuthStore();
+  const { login, register, googleLogin } = useAuthStore();
 
   const switchMode = () => {
     setMode((m) => (m === 'login' ? 'register' : 'login'));
@@ -195,6 +196,7 @@ const AuthPromptModal = ({ open, onClose, onAuthSuccess }) => {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="password"
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -218,6 +220,55 @@ const AuthPromptModal = ({ open, onClose, onAuthSuccess }) => {
                     </>
                   )}
                 </button>
+
+                {/* Google OAuth divider */}
+                <div className="relative mt-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200 dark:border-slate-700" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="px-2 bg-white dark:bg-slate-950 text-slate-400">or</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex justify-center">
+                  <GoogleLogin
+                    onSuccess={async (credentialResponse) => {
+                      setLoading(true);
+                      const sessionToken = getSessionToken();
+                      try {
+                        const result = await googleLogin(credentialResponse.credential);
+                        if (result.success) {
+                          try {
+                            const claimResult = await claimAnonymousQRCodes(sessionToken);
+                            if (claimResult.success && claimResult.claimed > 0) {
+                              toast.success(`${claimResult.claimed} QR code(s) added to your account!`);
+                            } else {
+                              toast.success('Signed in with Google!');
+                            }
+                            clearSessionToken();
+                          } catch {
+                            toast.success('Signed in with Google!');
+                          }
+                          setFormData({ name: '', email: '', password: '' });
+                          if (onAuthSuccess) onAuthSuccess();
+                          onClose();
+                        } else {
+                          toast.error('Google login failed');
+                        }
+                      } catch {
+                        toast.error('Google login failed');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    onError={() => toast.error('Google login failed')}
+                    size="large"
+                    text="continue_with"
+                    shape="rectangular"
+                    width={280}
+                  />
+                </div>
 
                 <p className="text-center text-xs text-slate-400 mt-3">
                   {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}

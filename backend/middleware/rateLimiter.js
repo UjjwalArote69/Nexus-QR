@@ -24,6 +24,18 @@ export const createQRLimiter = rateLimit({
   },
 });
 
+// BUG-015 fix: rate limiter for file upload endpoints
+export const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 uploads per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many file uploads. Please try again later.',
+  },
+});
+
 // General API limiter
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

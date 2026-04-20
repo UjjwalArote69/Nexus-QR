@@ -83,8 +83,8 @@ const UserProfileView = () => {
       toast.error('New passwords do not match');
       return;
     }
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters');
       return;
     }
 
@@ -104,14 +104,16 @@ const UserProfileView = () => {
     }
   };
 
+  const isGoogleUser = user?.authProvider === 'google';
+
   const handleDeleteAccount = async () => {
-    if (!deletePassword) {
+    if (!isGoogleUser && !deletePassword) {
       toast.error('Please enter your password to confirm');
       return;
     }
     setDeleting(true);
     try {
-      await deleteAccount(deletePassword);
+      await deleteAccount(isGoogleUser ? undefined : deletePassword);
       toast.success('Account deleted');
       logout();
     } catch (err) {
@@ -218,7 +220,8 @@ const UserProfileView = () => {
               </form>
             </section>
 
-            {/* Change Password */}
+            {/* Change Password — hidden for Google OAuth users */}
+            {!isGoogleUser && (
             <section className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
               <div className="flex items-center space-x-2 mb-6">
                 <Lock className="w-5 h-5 text-slate-400" />
@@ -290,6 +293,7 @@ const UserProfileView = () => {
                 </div>
               </form>
             </section>
+            )}
           </div>
 
           {/* Right Column */}
@@ -357,13 +361,19 @@ const UserProfileView = () => {
         loading={deleting}
         variant="danger"
       >
-        <input
-          type="password"
-          value={deletePassword}
-          onChange={(e) => setDeletePassword(e.target.value)}
-          placeholder="Enter your password to confirm"
-          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all"
-        />
+        {isGoogleUser ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Click "Delete Account" to confirm deletion of your Google-linked account.
+          </p>
+        ) : (
+          <input
+            type="password"
+            value={deletePassword}
+            onChange={(e) => setDeletePassword(e.target.value)}
+            placeholder="Enter your password to confirm"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all"
+          />
+        )}
       </ConfirmModal>
     </AnimatedPage>
   );

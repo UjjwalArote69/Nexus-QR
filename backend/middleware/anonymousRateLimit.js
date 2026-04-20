@@ -9,6 +9,8 @@ const rateLimitStore = new Map(); // key: sessionToken, value: { count, resetAt 
 
 const ANON_DAILY_LIMIT = 10;    // max QR codes per anonymous session per day
 const WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+// BUG-005 fix: cap maximum entries to prevent memory exhaustion
+const MAX_STORE_ENTRIES = 10000;
 
 const anonymousRateLimit = (req, res, next) => {
   // Only rate-limit anonymous users
@@ -18,6 +20,15 @@ const anonymousRateLimit = (req, res, next) => {
   if (!sessionToken) return next(); // no token — will be rejected by optionalAuth anyway
 
   const now = Date.now();
+
+  // Reject new entries if store is at capacity (DoS protection)
+  if (!rateLimitStore.has(sessionToken) && rateLimitStore.size >= MAX_STORE_ENTRIES) {
+    return res.status(429).json({
+      success: false,
+      message: 'Server is busy. Please try again later or create a free account.',
+    });
+  }
+
   let entry = rateLimitStore.get(sessionToken);
 
   // Reset if window has expired
@@ -55,4 +66,5 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
-module.exports = anonymousRateLimit;
+// BUG-005 fix: use ES module export for consistency with codebase
+export default anonymousRateLimit;

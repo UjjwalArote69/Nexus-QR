@@ -1,292 +1,129 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useState, useContext, useEffect } from 'react';
-import useQRStore from '../../../../store/qrStore'; // <-- Added store import
-import { BuilderContext } from '../../Dashboard'; 
-import { 
-  ArrowLeft, Contact, AlertCircle, 
-  Settings2, Palette, ChevronDown, Check,
-  User, Building2, Phone, Mail, Globe, MapPin
-} from 'lucide-react';
-import TemplatePicker from '../TemplatePicker';
+import { useState, useEffect } from 'react';
+import useQRStore from '../../../../store/qrStore';
+import { Contact, User, Building2, Phone, Mail, Globe, MapPin, LayoutTemplate } from 'lucide-react';
+import { FormShell, Section, DesignSection, SettingsSection, Field, inputClass, inputWithIconClass, useFormSections } from '../FormKit';
+import VCardTemplatePicker from './VCardTemplatePicker';
+import usePageTitle from '../../../../hooks/usePageTitle';
 
 const VCardQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
-  const { builderStep, setBuilderStep } = useContext(BuilderContext);
-  
-  // 1. Pull common state and actions from the store
-  const { 
-    title, setTitle, 
-    fgColor, setFgColor, 
-    bgColor, setBgColor, 
-    isLoading, error, setError,
-    createQRCode 
-  } = useQRStore();
+  usePageTitle('vCard QR');
+  const { fgColor, bgColor, title, isLoading, error, setError, createQRCode, uploadImage } = useQRStore();
 
-  // 2. Keep ONLY type-specific state local
   const [contactData, setContactData] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    email: '',
-    company: '',
-    jobTitle: '',
-    website: '',
-    address: ''
+    firstName: '', lastName: '', phone: '', email: '',
+    company: '', jobTitle: '', website: '', address: '', avatar: '',
   });
-  
-  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
+  const [template, setTemplate] = useState('default');
+  const [isUploading, setIsUploading] = useState(false);
+  const { openSections, toggle } = useFormSections({ content: true, template: true, design: false, settings: false });
 
   useEffect(() => {
-    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
-    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
-  }, [builderStep]);
+    onLiveUpdate?.({ url: 'https://klink.com/preview-vcard', fgColor, bgColor, title, meta: { template } });
+  }, [contactData, fgColor, bgColor, title, template]);
 
-  useEffect(() => {
-    if (onLiveUpdate) {
-      onLiveUpdate({ 
-        url: 'https://klink.com/preview-vcard', 
-        fgColor, 
-        bgColor, 
-        title 
-      });
-    }
-  }, [contactData, fgColor, bgColor, title]);
+  const set = (key, value) => setContactData(prev => ({ ...prev, [key]: value }));
 
-  const toggleSection = (section) => {
-    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploading(true);
+    const result = await uploadImage(file);
+    if (result.success) set('avatar', result.imageUrl);
+    setIsUploading(false);
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setContactData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
-
     if (!contactData.firstName || !contactData.phone) {
-      setError("First Name and Phone Number are required.");
-      setOpenSections(prev => ({ ...prev, content: true }));
-      return;
-    }
-
-    if (!contactData.email) {
-      setError("Adding an email address is strongly recommended for a useful vCard.");
-      // Don't return — allow submission, just warn
+      setError('First name and phone number are required.'); return;
     }
 
     const result = await createQRCode({
       title: title || `${contactData.firstName}'s vCard`,
       qrType: 'vCard Plus',
-      content: contactData,
+      content: { ...contactData, template },
     });
 
     if (result.success) {
-      setContactData({ firstName: '', lastName: '', phone: '', email: '', company: '', jobTitle: '', website: '', address: '' });
+      setContactData({ firstName: '', lastName: '', phone: '', email: '', company: '', jobTitle: '', website: '', address: '', avatar: '' });
+      setTemplate('default');
       onGenerated(result.qrLink);
     }
   };
 
   return (
-    <div className="flex flex-col h-full relative">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 sticky top-0 z-10">
+    <FormShell icon={Contact} iconColor="text-emerald-500" label="vCard Plus" accentColor="emerald" onBack={onBack} onSubmit={handleSubmit} isLoading={isLoading} disabled={!contactData.firstName || !contactData.phone} error={error}>
+
+      {/* ── Template Selection ── */}
+      <Section icon={LayoutTemplate} title="Select Template" subtitle="Choose how your digital card will look" isOpen={openSections.template} onToggle={() => toggle('template')} accentColor="emerald">
+        <VCardTemplatePicker value={template} onChange={setTemplate} />
+      </Section>
+
+      {/* ── Contact Info ── */}
+      <Section icon={Contact} title="Contact Info" subtitle="Enter the details for your digital card" isOpen={openSections.content} onToggle={() => toggle('content')} accentColor="emerald">
+
+        {/* Avatar */}
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 -ml-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2 text-slate-800 dark:text-white font-medium">
-            <Contact className="w-5 h-5 text-emerald-500" />
-            vCard Plus
+          <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+            {contactData.avatar
+              ? <img src={contactData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              : <User className="w-5 h-5 text-slate-400" />
+            }
+          </div>
+          <div className="flex-1">
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 rounded-full cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors">
+              <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading} className="hidden" />
+              {isUploading ? 'Uploading...' : contactData.avatar ? 'Change photo' : 'Upload photo'}
+            </label>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
-        {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
-            <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
-            <p className="text-sm font-medium">{error}</p>
-          </div>
-        )}
-
-        {/* SECTION 1: CONTENT */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => toggleSection('content')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                <Contact className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white text-base">1. Contact Info</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Enter details for your digital card</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-emerald-500' : ''}`} />
-          </button>
-          
-          {openSections.content && (
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-4 animate-in slide-in-from-top-2 duration-200">
-              
-              {/* Name Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">First Name <span className="text-emerald-500">*</span></label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input type="text" name="firstName" value={contactData.firstName} onChange={handleChange} className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Last Name</label>
-                  <input type="text" name="lastName" value={contactData.lastName} onChange={handleChange} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-                </div>
-              </div>
-
-              {/* Contact Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Phone <span className="text-emerald-500">*</span></label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input type="tel" name="phone" value={contactData.phone} onChange={handleChange} className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input type="email" name="email" value={contactData.email} onChange={handleChange} className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Work Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Company</label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input type="text" name="company" value={contactData.company} onChange={handleChange} className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Job Title</label>
-                  <input type="text" name="jobTitle" value={contactData.jobTitle} onChange={handleChange} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-                </div>
-              </div>
-
-              {/* Extras */}
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Website</label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input type="url" name="website" value={contactData.website} onChange={handleChange} placeholder="https://" className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Address</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input type="text" name="address" value={contactData.address} onChange={handleChange} className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-                </div>
-              </div>
-
-            </div>
-          )}
+        {/* Name */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="First Name" required icon={User}>
+            <input type="text" value={contactData.firstName} onChange={(e) => set('firstName', e.target.value)} className={inputWithIconClass('emerald')} />
+          </Field>
+          <Field label="Last Name">
+            <input type="text" value={contactData.lastName} onChange={(e) => set('lastName', e.target.value)} className={inputClass('emerald')} />
+          </Field>
         </div>
 
-        {/* SECTION 2: DESIGN */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => toggleSection('design')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                <Palette className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white text-base">2. Design</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Customize colors</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-emerald-500' : ''}`} />
-          </button>
-          
-          {openSections.design && (
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
-              <TemplatePicker />
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Color</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={fgColor} onChange={(e) => setFgColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                    <input type="text" value={fgColor} onChange={(e) => setFgColor(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Background</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                    <input type="text" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+        {/* Contact */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Phone" required icon={Phone}>
+            <input type="tel" value={contactData.phone} onChange={(e) => set('phone', e.target.value)} className={inputWithIconClass('emerald')} />
+          </Field>
+          <Field label="Email" icon={Mail}>
+            <input type="email" value={contactData.email} onChange={(e) => set('email', e.target.value)} className={inputWithIconClass('emerald')} />
+          </Field>
         </div>
 
-        {/* SECTION 3: SETTINGS */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => toggleSection('settings')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                <Settings2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white text-base">3. Settings</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Name your campaign</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-emerald-500' : ''}`} />
-          </button>
-          
-          {openSections.settings && (
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
-                <input 
-                  type="text" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={100}
-                  placeholder="e.g., John's Work Profile"
-                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-sm"
-                />
-              </div>
-            </div>
-          )}
+        {/* Work */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Company" icon={Building2}>
+            <input type="text" value={contactData.company} onChange={(e) => set('company', e.target.value)} className={inputWithIconClass('emerald')} />
+          </Field>
+          <Field label="Job Title">
+            <input type="text" value={contactData.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} className={inputClass('emerald')} />
+          </Field>
         </div>
-      </div>
 
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] flex justify-end">
-        <button 
-          onClick={handleSubmit}
-          disabled={isLoading || !contactData.firstName || !contactData.phone}
-          className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-        >
-          {isLoading ? (
-             <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-             </svg>
-          ) : (
-            <Check className="w-5 h-5" />
-          )}
-          {isLoading ? 'Generating...' : 'Complete setup'}
-        </button>
-      </div>
-    </div>
+        <Field label="Website" icon={Globe}>
+          <input type="url" value={contactData.website} onChange={(e) => set('website', e.target.value)} placeholder="https://" className={inputWithIconClass('emerald')} />
+        </Field>
+        <Field label="Address" icon={MapPin}>
+          <input type="text" value={contactData.address} onChange={(e) => set('address', e.target.value)} className={inputWithIconClass('emerald')} />
+        </Field>
+
+      </Section>
+
+      <DesignSection isOpen={openSections.design} onToggle={() => toggle('design')} accentColor="emerald" />
+
+      <SettingsSection isOpen={openSections.settings} onToggle={() => toggle('settings')} accentColor="emerald" />
+
+    </FormShell>
   );
 };
 

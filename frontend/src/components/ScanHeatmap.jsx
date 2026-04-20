@@ -98,12 +98,12 @@ const ScanHeatmap = ({ qrId = null }) => {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
             />
-            {markers.map((marker, i) => {
+            {markers.map((marker) => {
               const intensity = marker.count / maxCount;
               const radius = Math.max(6, Math.min(20, 6 + intensity * 14));
               return (
                 <CircleMarker
-                  key={i}
+                  key={`${marker.lat || marker.latitude},${marker.lng || marker.longitude}`}
                   center={[marker.latitude, marker.longitude]}
                   radius={radius}
                   pathOptions={{

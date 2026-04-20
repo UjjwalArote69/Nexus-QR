@@ -4,6 +4,7 @@ import  { useState,  } from 'react';
 import { motion } from 'framer-motion';
 import { QrCode, Mail, Lock, ArrowRight, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
 import  useTheme  from '../hooks/useTheme';
@@ -16,7 +17,7 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login } = useAuthStore();
+  const { login, googleLogin } = useAuthStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
@@ -131,6 +132,7 @@ const Login = () => {
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   required
                   className="block w-full pl-10 pr-10 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-400 transition-colors sm:text-sm"
                   placeholder="••••••••"
@@ -181,13 +183,52 @@ const Login = () => {
             </button>
           </form>
 
+          {/* Google OAuth Divider */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200 dark:border-slate-800 transition-colors" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-slate-900 text-slate-500 transition-colors">
+                <span className="px-2 bg-white dark:bg-slate-900/50 text-slate-500 transition-colors">
+                  Or continue with
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <GoogleLogin
+                onSuccess={async (credentialResponse) => {
+                  try {
+                    const result = await googleLogin(credentialResponse.credential);
+                    if (result.success) {
+                      toast.success('Successfully logged in!');
+                      navigate(redirectTo);
+                    } else {
+                      toast.error('Google login failed');
+                    }
+                  } catch {
+                    toast.error('Google login failed');
+                  }
+                }}
+                onError={() => toast.error('Google login failed')}
+                theme={isDark ? 'filled_black' : 'outline'}
+                size="large"
+                text="continue_with"
+                shape="rectangular"
+                width={320}
+              />
+            </div>
+          </div>
+
+          {/* Sign up link */}
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800 transition-colors" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white dark:bg-slate-900/50 text-slate-500 transition-colors">
                   New to Klink?
                 </span>
               </div>

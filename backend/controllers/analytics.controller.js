@@ -235,10 +235,17 @@ export const getQRAnalytics = async (req, res) => {
 
     const where = { qrCodeId: id, scannedAt: { [Op.between]: [start, end] } };
 
+    // BUG-027 fix: add timeout to prevent long-running analytics queries
+    const QUERY_TIMEOUT_MS = 15000;
+    const withTimeout = (promise) => Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout')), QUERY_TIMEOUT_MS)),
+    ]);
+
     const [totalScans, uniqueVisitors, timeseries, osCounts, deviceCounts, browserCounts, countryCounts, cityCounts, recentScans] = await Promise.all([
-      ScanEvent.count({ where }),
-      ScanEvent.count({ where, distinct: true, col: 'ip' }),
-      ScanEvent.findAll({
+      withTimeout(ScanEvent.count({ where })),
+      withTimeout(ScanEvent.count({ where, distinct: true, col: 'ip' })),
+      withTimeout(ScanEvent.findAll({
         where,
         attributes: [
           [fn('DATE', col('scannedAt')), 'date'],
@@ -247,52 +254,52 @@ export const getQRAnalytics = async (req, res) => {
         group: [fn('DATE', col('scannedAt'))],
         order: [[fn('DATE', col('scannedAt')), 'ASC']],
         raw: true,
-      }),
-      ScanEvent.findAll({
+      })),
+      withTimeout(ScanEvent.findAll({
         where,
         attributes: ['os', [fn('COUNT', col('id')), 'count']],
         group: ['os'],
         order: [[fn('COUNT', col('id')), 'DESC']],
         limit: 10,
         raw: true,
-      }),
-      ScanEvent.findAll({
+      })),
+      withTimeout(ScanEvent.findAll({
         where,
         attributes: ['deviceType', [fn('COUNT', col('id')), 'count']],
         group: ['deviceType'],
         order: [[fn('COUNT', col('id')), 'DESC']],
         raw: true,
-      }),
-      ScanEvent.findAll({
+      })),
+      withTimeout(ScanEvent.findAll({
         where,
         attributes: ['browser', [fn('COUNT', col('id')), 'count']],
         group: ['browser'],
         order: [[fn('COUNT', col('id')), 'DESC']],
         limit: 10,
         raw: true,
-      }),
-      ScanEvent.findAll({
+      })),
+      withTimeout(ScanEvent.findAll({
         where,
         attributes: ['country', [fn('COUNT', col('id')), 'count']],
         group: ['country'],
         order: [[fn('COUNT', col('id')), 'DESC']],
         limit: 10,
         raw: true,
-      }),
-      ScanEvent.findAll({
+      })),
+      withTimeout(ScanEvent.findAll({
         where,
         attributes: ['country', 'city', [fn('COUNT', col('id')), 'count']],
         group: ['country', 'city'],
         order: [[fn('COUNT', col('id')), 'DESC']],
         limit: 15,
         raw: true,
-      }),
-      ScanEvent.findAll({
-        where: { qrCodeId: id },
+      })),
+      withTimeout(ScanEvent.findAll({
+        where,
         order: [['scannedAt', 'DESC']],
         limit: 20,
         raw: true,
-      }),
+      })),
     ]);
 
     // Fill timeseries gaps

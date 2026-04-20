@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@craftjs/core": "^0.2.12",
+    "@react-oauth/google": "^0.13.5",
     "@tailwindcss/vite": "^4.2.1",
     "axios": "^1.13.6",
     "chart.js": "^4.5.1",

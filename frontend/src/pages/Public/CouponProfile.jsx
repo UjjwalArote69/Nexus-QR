@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { 
-  Ticket, Scissors, Copy, CheckCircle2, ExternalLink, Calendar 
-} from 'lucide-react';
+import { Copy, Check, ExternalLink, Clock } from 'lucide-react';
+import usePageTitle from '../../hooks/usePageTitle';
 
 const CouponProfile = () => {
+  usePageTitle('Coupon');
   const { shortId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,15 +18,14 @@ const CouponProfile = () => {
         const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
         const response = await axios.get(`${apiBase}/qrcodes/public/${shortId}`);
         if (response.data.success) {
-          setData(response.data.data.content); 
+          setData(response.data.data.content);
         }
-      } catch (err) {
-        setError("Coupon not found or has expired.", err);
+      } catch {
+        setError('Coupon not found or has expired.');
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [shortId]);
 
@@ -37,104 +36,113 @@ const CouponProfile = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Format the date if it exists
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return null;
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    return new Date(dateString).toLocaleDateString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-orange-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Ticket className="w-16 h-16 text-slate-300 mb-4" />
-        <h1 className="text-xl font-semibold text-slate-800">Offer Unavailable</h1>
-        <p className="text-slate-500 mt-2 text-center">{error}</p>
+      <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-6">
+        <p className="text-neutral-800 font-semibold">Offer Unavailable</p>
+        <p className="text-neutral-400 text-sm mt-1">{error || 'This coupon may have expired.'}</p>
       </div>
     );
   }
 
+  const isExpired = data.validUntil && new Date(data.validUntil) < new Date();
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 to-amber-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center py-10 px-4 font-sans">
-      
-      {/* Coupon Ticket Container */}
-      <div className="max-w-sm w-full bg-white dark:bg-slate-950 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-500 relative">
-        
-        {/* Ticket Top Half */}
-        <div className="bg-orange-500 p-8 text-center text-white relative">
-          <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full mx-auto mb-4 flex items-center justify-center">
-            <Ticket className="w-8 h-8 text-white" />
-          </div>
-          
-          <h3 className="text-orange-100 font-medium tracking-widest uppercase text-sm mb-2">
+    <div className="min-h-screen bg-neutral-50 flex items-start sm:items-center justify-center sm:py-12 px-0 sm:px-4">
+      <div className="w-full sm:max-w-[420px] bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-neutral-200/60 min-h-screen sm:min-h-0">
+
+        {/* Brand + Offer */}
+        <div className="pt-10 pb-6 px-6 text-center">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-[0.15em] mb-3">
             {data.companyName}
-          </h3>
-          <h1 className="text-3xl font-bold mb-2 leading-tight">
+          </p>
+          <h1 className="text-2xl font-bold text-neutral-900 tracking-tight leading-tight">
             {data.offerTitle}
           </h1>
-
-          {/* Ticket Cutout (Left & Right circles) */}
-          <div className="absolute -bottom-4 -left-4 w-8 h-8 bg-orange-100 dark:bg-slate-900 rounded-full"></div>
-          <div className="absolute -bottom-4 -right-4 w-8 h-8 bg-amber-50 dark:bg-slate-800 rounded-full"></div>
-        </div>
-
-        {/* Dashed Line separator */}
-        <div className="relative border-t-2 border-dashed border-slate-200 dark:border-slate-800 mx-6 flex items-center justify-center -mt-[1px]">
-          <Scissors className="w-4 h-4 text-slate-300 absolute -top-2 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-950 px-1" />
-        </div>
-
-        {/* Ticket Bottom Half */}
-        <div className="p-8 text-center space-y-6">
-          
           {data.description && (
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
+            <p className="text-neutral-500 text-sm mt-3 leading-relaxed max-w-[300px] mx-auto">
               {data.description}
             </p>
           )}
+        </div>
 
-          {/* The Coupon Code Block */}
-          <div className="bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-orange-200 dark:border-orange-900/50 rounded-xl p-4 relative group cursor-pointer transition-colors hover:bg-orange-50 dark:hover:bg-orange-900/10" onClick={handleCopy}>
-            <p className="text-xs text-slate-400 uppercase font-semibold tracking-wider mb-1">Promo Code</p>
-            <p className="text-2xl font-black text-slate-800 dark:text-white tracking-widest font-mono">
+        {/* Coupon code */}
+        <div className="px-6 pb-6">
+          <div
+            onClick={handleCopy}
+            className="relative cursor-pointer select-none border-2 border-dashed border-neutral-200 rounded-xl p-5 text-center hover:border-neutral-300 hover:bg-neutral-50 transition-colors"
+          >
+            <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+              Your code
+            </p>
+            <p className="text-2xl font-mono font-black text-neutral-900 tracking-[0.15em]">
               {data.couponCode}
             </p>
-            
-            <button className="absolute top-1/2 -translate-y-1/2 right-4 text-orange-500 bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg transition-transform active:scale-90">
-              {copied ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+            <button className="absolute top-1/2 -translate-y-1/2 right-4 p-2 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors">
+              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
-          
-          {/* Expiration */}
-          {data.validUntil && (
-            <div className="flex items-center justify-center text-xs text-slate-500 font-medium">
-              <Calendar className="w-4 h-4 mr-1.5" />
-              Valid until {formatDate(data.validUntil)}
-            </div>
-          )}
 
-          {/* Redeem Action Button */}
-          {data.buttonUrl && (
-            <div className="pt-2">
-              <a 
-                href={data.buttonUrl} 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-center w-full py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all"
-              >
-                {data.buttonText || 'Redeem Offer'}
-                <ExternalLink className="w-4 h-4 ml-2" />
-              </a>
-            </div>
+          {copied && (
+            <p className="text-center text-xs text-emerald-600 font-medium mt-2">
+              Copied to clipboard
+            </p>
           )}
+        </div>
 
+        {/* Expiry */}
+        {data.validUntil && (
+          <div className="px-6 pb-4">
+            <div className={`flex items-center justify-center gap-1.5 text-xs font-medium ${isExpired ? 'text-red-500' : 'text-neutral-400'}`}>
+              <Clock className="w-3.5 h-3.5" />
+              {isExpired ? 'Expired' : `Valid until ${formatDate(data.validUntil)}`}
+            </div>
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="mx-6 border-t border-neutral-100" />
+
+        {/* CTA */}
+        {data.buttonUrl && !isExpired && (
+          <div className="p-6">
+            <a
+              href={ensureProtocol(data.buttonUrl)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 active:scale-[0.98] transition-all"
+            >
+              {data.buttonText || 'Redeem Offer'}
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="pb-8 pt-2 text-center">
+          <span className="text-[11px] text-neutral-300 font-medium tracking-wide uppercase">
+            Powered by Klink
+          </span>
         </div>
       </div>
     </div>

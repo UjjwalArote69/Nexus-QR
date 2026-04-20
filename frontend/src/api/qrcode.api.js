@@ -9,9 +9,7 @@ export const generateQRCode = async (qrData) => {
 
 // ── Create QR Code with file upload (images, PDF, video, MP3) ──
 export const createQRWithFile = async (formData) => {
-    const response = await API.post('/qrcodes/create-with-file', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await API.post('/qrcodes/create-with-file', formData);
     return response.data;
 };
 
@@ -72,5 +70,11 @@ export const archiveQRCode = async (id) => {
 // ── Bulk create QR codes ──
 export const bulkCreateQRCodes = async (items) => {
     const response = await API.post('/qrcodes/bulk-create', { items });
+    return response.data;
+};
+
+// ── Upload image (for vCard avatar, etc.) ──
+export const uploadImage = async (formData) => {
+    const response = await API.post('/qrcodes/upload-image', formData);
     return response.data;
 };

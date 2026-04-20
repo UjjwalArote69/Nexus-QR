@@ -20,6 +20,25 @@ import { StaggeredGrid, StaggeredItem } from '../../../components/ui/StaggeredGr
 import ConfirmModal from '../../../components/ui/ConfirmModal';
 import { SkeletonCard } from '../../../components/ui/Skeleton';
 
+const presets = [
+  { id: 'p-classic', name: 'Classic', fgColor: '#000000', bgColor: '#ffffff', category: 'Minimal' },
+  { id: 'p-midnight', name: 'Midnight', fgColor: '#1e293b', bgColor: '#f1f5f9', category: 'Minimal' },
+  { id: 'p-charcoal', name: 'Charcoal', fgColor: '#374151', bgColor: '#f9fafb', category: 'Minimal' },
+  { id: 'p-ocean', name: 'Ocean Blue', fgColor: '#1e3a5f', bgColor: '#e8f4fd', category: 'Cool' },
+  { id: 'p-navy', name: 'Navy', fgColor: '#1e3a8a', bgColor: '#eff6ff', category: 'Cool' },
+  { id: 'p-teal', name: 'Teal Breeze', fgColor: '#115e59', bgColor: '#f0fdfa', category: 'Cool' },
+  { id: 'p-forest', name: 'Forest', fgColor: '#14532d', bgColor: '#f0fdf4', category: 'Cool' },
+  { id: 'p-royal', name: 'Royal Purple', fgColor: '#4c1d95', bgColor: '#f5f3ff', category: 'Vibrant' },
+  { id: 'p-ruby', name: 'Ruby', fgColor: '#991b1b', bgColor: '#fef2f2', category: 'Vibrant' },
+  { id: 'p-sunset', name: 'Sunset', fgColor: '#9a3412', bgColor: '#fff7ed', category: 'Vibrant' },
+  { id: 'p-rose', name: 'Rose', fgColor: '#881337', bgColor: '#fff1f2', category: 'Vibrant' },
+  { id: 'p-golden', name: 'Golden', fgColor: '#78350f', bgColor: '#fffbeb', category: 'Vibrant' },
+  { id: 'p-ink', name: 'Ink', fgColor: '#0f172a', bgColor: '#e2e8f0', category: 'Bold' },
+  { id: 'p-inverted', name: 'Inverted', fgColor: '#ffffff', bgColor: '#0f172a', category: 'Bold' },
+  { id: 'p-electric', name: 'Electric', fgColor: '#7c3aed', bgColor: '#faf5ff', category: 'Bold' },
+  { id: 'p-coral', name: 'Coral', fgColor: '#be123c', bgColor: '#ffe4e6', category: 'Bold' },
+];
+
 const TemplatesView = () => {
   usePageTitle('Templates');
   const [templates, setTemplates] = useState([]);
@@ -53,6 +72,12 @@ const TemplatesView = () => {
   const filteredTemplates = useMemo(() => {
     return templates.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [templates, searchTerm]);
+
+  const filteredPresets = useMemo(() => {
+    if (!searchTerm) return presets;
+    const q = searchTerm.toLowerCase();
+    return presets.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
+  }, [searchTerm]);
 
   const openCreateModal = () => {
     setEditingTemplate(null);
@@ -172,16 +197,50 @@ const TemplatesView = () => {
         </div>
 
         {/* Search */}
+        <div className="relative max-w-md mb-8">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search templates..."
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+          />
+        </div>
+
+        {/* Pre-installed Templates */}
+        <div className="mb-10">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Pre-installed</h2>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Ready-to-use color schemes. Click to apply.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            {filteredPresets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => handleApplyDesign(preset)}
+                className="flex flex-col items-center gap-2.5 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group"
+              >
+                <div className="w-full aspect-square rounded-lg flex items-center justify-center" style={{ backgroundColor: preset.bgColor }}>
+                  <QRCodeSVG
+                    value="https://klink.com"
+                    size={48}
+                    level="L"
+                    fgColor={preset.fgColor}
+                    bgColor={preset.bgColor}
+                  />
+                </div>
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors truncate w-full text-center">
+                  {preset.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* User Templates */}
         {templates.length > 0 && (
-          <div className="relative max-w-md mb-8">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search templates..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            />
+          <div className="mb-5">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">My Templates</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Your saved brand colors.</p>
           </div>
         )}
 

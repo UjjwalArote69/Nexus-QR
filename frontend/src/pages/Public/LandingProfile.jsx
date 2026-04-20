@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { LayoutTemplate, ArrowRight } from 'lucide-react';
+import { ArrowRight, LayoutTemplate } from 'lucide-react';
+import usePageTitle from '../../hooks/usePageTitle';
 
 const LandingProfile = () => {
+  usePageTitle('Landing Page');
   const { shortId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,10 +17,10 @@ const LandingProfile = () => {
         const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
         const response = await axios.get(`${apiBase}/qrcodes/public/${shortId}`);
         if (response.data.success) {
-          setData(response.data.data.content); 
+          setData(response.data.data.content);
         }
-      } catch (err) {
-        setError("Landing page not found.",err);
+      } catch {
+        setError('Landing page not found.');
       } finally {
         setLoading(false);
       }
@@ -26,77 +28,81 @@ const LandingProfile = () => {
     fetchData();
   }, [shortId]);
 
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <LayoutTemplate className="w-16 h-16 text-slate-300 mb-4" />
-        <h1 className="text-xl font-semibold text-slate-800">Page Not Found</h1>
+      <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-6">
+        <LayoutTemplate className="w-10 h-10 text-neutral-300 mb-4" strokeWidth={1.5} />
+        <p className="text-neutral-800 font-semibold">Page Not Found</p>
+        <p className="text-neutral-400 text-sm mt-1">This page may have been removed.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center py-10 px-4 font-sans">
-      <div className="max-w-md w-full bg-white dark:bg-slate-950 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
-        
-        {/* Optional Hero Image */}
-        {data.heroImageUrl ? (
-          <div className="w-full h-48 sm:h-64 bg-slate-200 dark:bg-slate-800 overflow-hidden relative">
-            <img 
-              src={data.heroImageUrl} 
-              alt="Hero" 
+    <div className="min-h-screen bg-neutral-50 flex items-start sm:items-center justify-center sm:py-12 px-0 sm:px-4">
+      <div className="w-full sm:max-w-[480px] bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-neutral-200/60 min-h-screen sm:min-h-0 overflow-hidden">
+
+        {/* Hero image */}
+        {data.heroImageUrl && (
+          <div className="w-full aspect-[16/9] bg-neutral-100 overflow-hidden">
+            <img
+              src={data.heroImageUrl}
+              alt=""
               className="w-full h-full object-cover"
             />
-            {/* Gradient Overlay for better text readability if company name overlays */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           </div>
-        ) : (
-          <div className="w-full h-32 bg-gradient-to-tr from-orange-400 to-rose-500"></div>
         )}
 
-        <div className="p-8 text-center -mt-6 relative z-10">
-          
+        {/* Content */}
+        <div className="px-6 py-10 sm:px-8">
           {data.companyName && (
-            <span className="inline-block px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold uppercase tracking-widest rounded-full mb-6 border border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur-md">
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-[0.15em] mb-4">
               {data.companyName}
-            </span>
+            </p>
           )}
 
-          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white leading-tight mb-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight leading-tight">
             {data.headline}
           </h1>
-          
+
           {data.description && (
-            <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-8">
+            <p className="text-neutral-500 text-[15px] leading-relaxed mt-4">
               {data.description}
             </p>
           )}
 
-          <a 
-            href={data.buttonUrl} 
-            target="_blank" 
-            rel="noreferrer"
-            className="group flex items-center justify-center w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-semibold text-lg transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-1"
-          >
-            {data.buttonText || "Learn More"}
-            <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-          </a>
+          {data.buttonUrl && (
+            <a
+              href={ensureProtocol(data.buttonUrl)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 mt-8 px-6 py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 active:scale-[0.98] transition-all group"
+            >
+              {data.buttonText || 'Learn More'}
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </a>
+          )}
         </div>
 
-      </div>
-      
-      <div className="mt-8 text-center">
-        <a href="https://klink.com" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-400 hover:text-orange-500 transition-colors uppercase tracking-widest">
-          Powered by Klink
-        </a>
+        {/* Footer */}
+        <div className="pb-8 text-center">
+          <span className="text-[11px] text-neutral-300 font-medium tracking-wide uppercase">
+            Powered by Klink
+          </span>
+        </div>
       </div>
     </div>
   );

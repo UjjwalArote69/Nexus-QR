@@ -34,15 +34,19 @@ const QRAnalyticsView = ({ qrId, onBack }) => {
   usePageTitle('QR Analytics');
   const [period, setPeriod] = useState('7d');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [data, setData] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      setLoadError(false);
       const result = await fetchQRAnalytics(qrId, period);
       if (result.success) setData(result.data);
+      else setLoadError(true);
     } catch (err) {
       console.error('Failed to load QR analytics:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -151,7 +155,21 @@ const QRAnalyticsView = ({ qrId, onBack }) => {
     );
   }
 
-  if (!data) return null;
+  if (!data) return (
+    <AnimatedPage className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50 dark:bg-slate-950/50">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
+          <button onClick={onBack} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="w-5 h-5" /></button>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">QR Analytics</h1>
+        </div>
+        <div className="text-center py-16">
+          <BarChart3 className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-slate-500">{loadError ? 'Failed to load analytics. Please try again.' : 'No data available.'}</p>
+          {loadError && <button onClick={loadData} className="mt-3 text-sm text-blue-600 hover:underline">Retry</button>}
+        </div>
+      </div>
+    </AnimatedPage>
+  );
 
   // ── Chart configs ──
   const lineData = {
@@ -291,20 +309,22 @@ const QRAnalyticsView = ({ qrId, onBack }) => {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { title: 'Total Scans', value: data.totalScans.toLocaleString(), icon: BarChart3, color: 'text-blue-500' },
-            { title: 'Unique Visitors', value: data.uniqueVisitors.toLocaleString(), icon: Users, color: 'text-emerald-500' },
-            { title: 'All-Time Scans', value: data.qrCode.scanCount.toLocaleString(), icon: Globe, color: 'text-violet-500' },
+            { title: 'Total Scans', value: data.totalScans.toLocaleString(), icon: BarChart3, iconBg: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' },
+            { title: 'Unique Visitors', value: data.uniqueVisitors.toLocaleString(), icon: Users, iconBg: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' },
+            { title: 'All-Time Scans', value: data.qrCode.scanCount.toLocaleString(), icon: Globe, iconBg: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400' },
           ].map((kpi, i) => (
             <motion.div
               key={kpi.title}
-              className="p-5 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl"
+              className="p-5 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">{kpi.title}</span>
-                <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">{kpi.title}</span>
+                <div className={`p-2 rounded-lg ${kpi.iconBg}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
               </div>
               <span className="text-3xl font-bold text-slate-900 dark:text-white">{kpi.value}</span>
             </motion.div>

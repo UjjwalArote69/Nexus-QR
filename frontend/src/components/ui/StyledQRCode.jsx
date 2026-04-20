@@ -55,7 +55,10 @@ const StyledQRCode = ({
     if (!qrRef.current) {
       qrRef.current = new QRCodeStyling(options);
       if (containerRef.current) {
-        containerRef.current.innerHTML = '';
+        // BUG-011 fix: clear children via DOM API instead of innerHTML for React compatibility
+        while (containerRef.current.firstChild) {
+          containerRef.current.removeChild(containerRef.current.firstChild);
+        }
         qrRef.current.append(containerRef.current);
       }
     } else {

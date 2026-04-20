@@ -10,10 +10,12 @@ const useScanNotifications = (userId) => {
   const tokenRef = useRef(null);
 
   const connectSocket = useCallback((token) => {
-    // Disconnect existing socket if any
+    // BUG-019 fix: wait for disconnect to complete before reconnecting
     if (socketRef.current) {
-      socketRef.current.disconnect();
+      const oldSocket = socketRef.current;
       socketRef.current = null;
+      oldSocket.removeAllListeners();
+      oldSocket.disconnect();
     }
 
     const socket = io(SOCKET_URL, {

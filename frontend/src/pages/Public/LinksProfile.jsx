@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Link2, ExternalLink } from 'lucide-react';
+import { ExternalLink, Link2 } from 'lucide-react';
+import usePageTitle from '../../hooks/usePageTitle';
 
 const LinksProfile = () => {
+  usePageTitle('Links');
   const { shortId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,77 +17,85 @@ const LinksProfile = () => {
         const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
         const response = await axios.get(`${apiBase}/qrcodes/public/${shortId}`);
         if (response.data.success) {
-          setData(response.data.data.content); // Extract { profile, links }
+          setData(response.data.data.content);
         }
-      } catch (err) {
-        setError("Link profile not found or inactive.", err);
+      } catch {
+        setError('Link page not found or inactive.');
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [shortId]);
 
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fuchsia-500"></div>
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Link2 className="w-16 h-16 text-slate-300 mb-4" />
-        <h1 className="text-xl font-semibold text-slate-800">Page Not Found</h1>
-        <p className="text-slate-500 mt-2 text-center">{error}</p>
+      <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-6">
+        <Link2 className="w-10 h-10 text-neutral-300 mb-4" strokeWidth={1.5} />
+        <p className="text-neutral-800 font-semibold">Page Not Found</p>
+        <p className="text-neutral-400 text-sm mt-1">This link may have been removed.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-12 px-4 sm:px-6 font-sans flex justify-center">
-      <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-        
-        {/* Profile Header */}
-        <div className="text-center mb-8">
-          <div className="w-24 h-24 bg-gradient-to-br from-fuchsia-400 to-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg text-white text-3xl font-bold">
-            {data.profile?.name?.charAt(0)}
+    <div className="min-h-screen bg-neutral-50 flex items-start sm:items-center justify-center sm:py-12 px-0 sm:px-4">
+      <div className="w-full sm:max-w-[440px] bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-neutral-200/60 min-h-screen sm:min-h-0">
+
+        {/* Profile */}
+        <div className="pt-12 pb-6 px-6 text-center">
+          <div className="w-18 h-18 rounded-full bg-neutral-900 mx-auto flex items-center justify-center mb-5" style={{ width: 72, height: 72 }}>
+            <span className="text-xl font-bold text-white">
+              {data.profile?.name?.charAt(0)?.toUpperCase()}
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
             {data.profile?.name}
           </h1>
           {data.profile?.bio && (
-            <p className="text-slate-600 dark:text-slate-400 font-medium">
+            <p className="text-neutral-500 text-sm mt-1.5 max-w-[280px] mx-auto leading-relaxed">
               {data.profile.bio}
             </p>
           )}
         </div>
 
-        {/* Links List */}
-        <div className="space-y-4">
+        {/* Links */}
+        <div className="px-6 pb-6 space-y-3">
           {data.links?.map((link) => (
-            <a 
-              key={link.id} 
-              href={link.url} 
-              target="_blank" 
+            <a
+              key={link.id}
+              href={ensureProtocol(link.url)}
+              target="_blank"
               rel="noreferrer"
-              className="block w-full p-4 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center shadow-sm hover:shadow-md transition-all active:scale-95 group relative"
+              className="flex items-center justify-between w-full p-4 rounded-xl border border-neutral-100 hover:border-neutral-200 hover:bg-neutral-50 transition-colors group"
             >
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{link.title}</span>
-              <ExternalLink className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="text-sm font-semibold text-neutral-800 group-hover:text-neutral-900">
+                {link.title}
+              </span>
+              <ExternalLink className="w-4 h-4 text-neutral-300 group-hover:text-neutral-500 transition-colors shrink-0 ml-3" strokeWidth={1.5} />
             </a>
           ))}
         </div>
 
-        <div className="mt-12 text-center">
-          <a href="https://klink.com" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-400 hover:text-fuchsia-500 transition-colors uppercase tracking-widest">
+        {/* Footer */}
+        <div className="pb-8 pt-2 text-center">
+          <span className="text-[11px] text-neutral-300 font-medium tracking-wide uppercase">
             Powered by Klink
-          </a>
+          </span>
         </div>
-
       </div>
     </div>
   );

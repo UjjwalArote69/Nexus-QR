@@ -1,12 +1,11 @@
-/* eslint-disable no-unused-vars */
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { 
-  Share2, Instagram, Twitter, Facebook, Linkedin, Youtube, Github, Globe, ArrowLeft
-} from 'lucide-react';
+import { Instagram, Twitter, Facebook, Linkedin, Youtube, Github, Globe, ExternalLink, Share2 } from 'lucide-react';
+import usePageTitle from '../../hooks/usePageTitle';
 
 const SocialProfile = () => {
+  usePageTitle('Social Profile');
   const { shortId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,10 +17,10 @@ const SocialProfile = () => {
         const apiBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
         const response = await axios.get(`${apiBase}/qrcodes/public/${shortId}`);
         if (response.data.success) {
-          setData(response.data.data.content); // { profile, socials }
+          setData(response.data.data.content);
         }
-      } catch (err) {
-        setError("Social profile not found.", err);
+      } catch {
+        setError('Social profile not found.');
       } finally {
         setLoading(false);
       }
@@ -29,92 +28,100 @@ const SocialProfile = () => {
     fetchData();
   }, [shortId]);
 
-  // Helper to map network names to nice UI elements
-  const getSocialConfig = (network, url) => {
-    const configs = {
-      instagram: { icon: Instagram, color: 'bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500', name: 'Instagram' },
-      twitter: { icon: Twitter, color: 'bg-sky-500', name: 'Twitter / X' },
-      facebook: { icon: Facebook, color: 'bg-blue-600', name: 'Facebook' },
-      linkedin: { icon: Linkedin, color: 'bg-blue-700', name: 'LinkedIn' },
-      youtube: { icon: Youtube, color: 'bg-red-600', name: 'YouTube' },
-      github: { icon: Github, color: 'bg-slate-800 dark:bg-slate-700', name: 'GitHub' },
-      website: { icon: Globe, color: 'bg-emerald-500', name: 'Website' },
-    };
-    return configs[network] || { icon: Globe, color: 'bg-slate-500', name: network };
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  };
+
+  const socialConfig = {
+    instagram: { icon: Instagram, label: 'Instagram', bg: 'bg-[#E4405F]' },
+    twitter: { icon: Twitter, label: 'X (Twitter)', bg: 'bg-[#000000]' },
+    facebook: { icon: Facebook, label: 'Facebook', bg: 'bg-[#1877F2]' },
+    linkedin: { icon: Linkedin, label: 'LinkedIn', bg: 'bg-[#0A66C2]' },
+    youtube: { icon: Youtube, label: 'YouTube', bg: 'bg-[#FF0000]' },
+    github: { icon: Github, label: 'GitHub', bg: 'bg-[#24292e]' },
+    website: { icon: Globe, label: 'Website', bg: 'bg-neutral-700' },
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Share2 className="w-16 h-16 text-slate-300 mb-4" />
-        <h1 className="text-xl font-semibold text-slate-800">Profile Not Found</h1>
+      <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-6">
+        <Share2 className="w-10 h-10 text-neutral-300 mb-4" strokeWidth={1.5} />
+        <p className="text-neutral-800 font-semibold">Profile Not Found</p>
+        <p className="text-neutral-400 text-sm mt-1">This link may have expired or been removed.</p>
       </div>
     );
   }
 
+  const socials = data.socials ? Object.entries(data.socials).filter(([, url]) => url) : [];
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex items-center justify-center py-12 px-4 sm:px-6">
-      <div className="max-w-md w-full bg-white dark:bg-slate-950 rounded-[2rem] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-500 border border-slate-100 dark:border-slate-800">
-        
-        {/* Header */}
-        <div className="bg-gradient-to-br from-sky-400 to-indigo-500 pt-12 pb-8 px-6 text-center relative">
-          <div className="w-24 h-24 bg-white rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg border-4 border-white">
-            <span className="text-4xl font-bold text-sky-500">
-              {data.profile?.name?.charAt(0).toUpperCase()}
+    <div className="min-h-screen bg-neutral-50 flex items-start sm:items-center justify-center sm:py-12 px-0 sm:px-4">
+      <div className="w-full sm:max-w-[440px] bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-neutral-200/60 min-h-screen sm:min-h-0">
+
+        {/* Profile header */}
+        <div className="pt-12 pb-8 px-6 text-center">
+          <div className="w-20 h-20 rounded-full bg-neutral-900 mx-auto flex items-center justify-center mb-5">
+            <span className="text-2xl font-bold text-white">
+              {data.profile?.name?.charAt(0)?.toUpperCase()}
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">
+          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
             {data.profile?.name}
           </h1>
           {data.profile?.headline && (
-            <p className="text-sky-100 font-medium px-4">
+            <p className="text-neutral-500 text-sm mt-1.5 max-w-[280px] mx-auto leading-relaxed">
               {data.profile.headline}
             </p>
           )}
         </div>
 
-        {/* Social Buttons */}
-        <div className="p-6 sm:p-8 space-y-4">
-          {data.socials && Object.entries(data.socials).map(([network, url]) => {
-            if (!url) return null;
-            const config = getSocialConfig(network, url);
+        {/* Divider */}
+        <div className="mx-6 border-t border-neutral-100" />
+
+        {/* Social links */}
+        <div className="p-6 space-y-3">
+          {socials.map(([network, url]) => {
+            const config = socialConfig[network] || { icon: Globe, label: network, bg: 'bg-neutral-600' };
             const Icon = config.icon;
-            
+
             return (
-              <a 
-                key={network} 
-                href={url} 
-                target="_blank" 
+              <a
+                key={network}
+                href={ensureProtocol(url)}
+                target="_blank"
                 rel="noreferrer"
-                className="flex items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 hover:scale-[1.02] hover:shadow-md transition-all group border border-slate-100 dark:border-slate-800"
+                className="flex items-center gap-4 p-3.5 rounded-xl border border-neutral-100 hover:border-neutral-200 hover:bg-neutral-50 transition-colors group"
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white mr-4 shadow-sm ${config.color}`}>
-                  <Icon className="w-6 h-6" />
+                <div className={`w-10 h-10 rounded-lg ${config.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className="w-5 h-5 text-white" strokeWidth={1.5} />
                 </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-slate-800 dark:text-slate-100 block">
-                    {config.name}
-                  </span>
-                  <span className="text-xs text-slate-500 block truncate max-w-[200px]">
-                    {url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-neutral-800">{config.label}</p>
+                  <p className="text-xs text-neutral-400 truncate">
+                    {url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
+                  </p>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-slate-200/50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-sky-100 group-hover:text-sky-500 transition-colors">
-                  <ArrowLeft className="w-4 h-4 rotate-135" style={{ transform: 'rotate(135deg)' }} />
-                </div>
+                <ExternalLink className="w-4 h-4 text-neutral-300 group-hover:text-neutral-500 transition-colors shrink-0" strokeWidth={1.5} />
               </a>
             );
           })}
         </div>
 
+        {/* Footer */}
+        <div className="pb-8 pt-2 text-center">
+          <span className="text-[11px] text-neutral-300 font-medium tracking-wide uppercase">
+            Powered by Klink
+          </span>
+        </div>
       </div>
     </div>
   );

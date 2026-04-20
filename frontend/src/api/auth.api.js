@@ -30,3 +30,8 @@ export const deleteAccount = async (password) => {
   const response = await API.delete('/users/account', { data: { password } });
   return response.data;
 };
+
+export const googleLoginUser = async (credential) => {
+  const response = await API.post('/users/google', { credential });
+  return response.data;
+};

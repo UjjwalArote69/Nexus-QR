@@ -15,10 +15,11 @@ const API = axios.create({
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
 
+  // Always send session token so the backend has a fallback if the JWT is expired
+  config.headers['x-session-token'] = getSessionToken();
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    config.headers['x-session-token'] = getSessionToken();
   }
 
   return config;
@@ -84,8 +85,10 @@ API.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('token');
-        // Redirect to login so user isn't stuck on a broken dashboard
-        window.location.href = '/login';
+        // BUG-007 fix: use soft redirect to preserve SPA state
+        // Notify the user before redirecting
+        toast.error('Session expired. Please sign in again.', { id: 'session-expired' });
+        setTimeout(() => { window.location.href = '/login'; }, 100);
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

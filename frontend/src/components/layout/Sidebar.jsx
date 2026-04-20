@@ -38,7 +38,8 @@ const Sidebar = ({ activeNav, setActiveNav, isMobileMenuOpen, setIsMobileMenuOpe
   const toggleCollapse = useCallback(() => {
     setIsCollapsed(prev => {
       const next = !prev;
-      try { localStorage.setItem('sidebar_collapsed', String(next)); } catch {}
+      // BUG-017 fix: log localStorage errors instead of silently swallowing
+      try { localStorage.setItem('sidebar_collapsed', String(next)); } catch (e) { console.warn('Failed to persist sidebar state:', e.message); }
       return next;
     });
   }, []);
@@ -126,7 +127,7 @@ const Sidebar = ({ activeNav, setActiveNav, isMobileMenuOpen, setIsMobileMenuOpe
         `}
       >
         {/* ── Header ── */}
-        <div className={`h-14 flex items-center shrink-0 ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} border-b border-slate-200 dark:border-slate-800`}>
+        <div className={`h-16 flex items-center shrink-0 ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} border-b border-slate-200 dark:border-slate-800`}>
           {/* Logo */}
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-7 h-7 bg-slate-900 dark:bg-white rounded-lg flex items-center justify-center shrink-0">

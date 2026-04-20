@@ -49,6 +49,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [overview, setOverview] = useState({ totalScans: 0, uniqueVisitors: 0, activeCampaigns: 0, scansTrend: 0, uniqueTrend: 0 });
   const [timeseries, setTimeseries] = useState([]);
   const [devices, setDevices] = useState({ os: [], deviceType: [] });
@@ -72,6 +73,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
     const from = period === 'custom' ? customFrom : undefined;
     const to = period === 'custom' ? customTo : undefined;
     try {
+      setLoadError(false);
       const [ov, ts, dv, ge, tc] = await Promise.all([
         fetchOverview(period, from, to),
         fetchTimeseries(period, from, to),
@@ -86,6 +88,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
       setTopCampaigns(tc.data);
     } catch (err) {
       console.error('Failed to load analytics:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -211,6 +214,9 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Real-time insights across all your active campaigns.
             </p>
+            {loadError && (
+              <p className="text-xs text-red-500 mt-1">Failed to load some data. Click refresh to try again.</p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -265,6 +271,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
             value={overview.totalScans.toLocaleString()}
             trend={formatTrend(overview.scansTrend)}
             icon={BarChart3}
+            color="blue"
             index={0}
           />
           <KPICard
@@ -272,6 +279,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
             value={overview.uniqueVisitors.toLocaleString()}
             trend={formatTrend(overview.uniqueTrend)}
             icon={Users}
+            color="emerald"
             index={1}
           />
           <KPICard
@@ -279,6 +287,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
             value={`${scanRate} / user`}
             trend="Stable"
             icon={MousePointerClick}
+            color="violet"
             neutral
             index={2}
           />
@@ -287,6 +296,7 @@ const StatisticsView = ({ onViewQRAnalytics }) => {
             value={overview.activeCampaigns.toString()}
             trend=""
             icon={TrendingUp}
+            color="amber"
             neutral
             index={3}
           />
@@ -426,7 +436,14 @@ const kpiVariants = {
   }),
 };
 
-const KPICard = ({ title, value, trend, icon: Icon, neutral, index = 0 }) => (
+const kpiColors = {
+  blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
+  emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400',
+  violet: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400',
+  amber: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400',
+};
+
+const KPICard = ({ title, value, trend, icon: Icon, color = 'blue', neutral, index = 0 }) => (
   <motion.div
     className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
     variants={kpiVariants}
@@ -435,9 +452,9 @@ const KPICard = ({ title, value, trend, icon: Icon, neutral, index = 0 }) => (
     custom={index}
   >
     <div className="flex items-center justify-between mb-4">
-      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{title}</span>
-      <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
-        <Icon className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">{title}</span>
+      <div className={`p-2 rounded-lg ${kpiColors[color]}`}>
+        <Icon className="w-4 h-4" />
       </div>
     </div>
     <div className="flex items-end justify-between">

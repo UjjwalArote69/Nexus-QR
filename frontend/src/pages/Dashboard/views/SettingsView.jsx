@@ -80,15 +80,17 @@ const SettingsView = () => {
       link.download = `klink-export-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
       toast.success(`Exported ${qrCodes.length} QR codes`);
-    } catch { toast.error('Failed to export data'); }
+    } catch (err) { console.warn('Export failed:', err); toast.error('Failed to export data'); }
     finally { setExporting(false); }
   }, []);
 
+  const isGoogleUser = user?.authProvider === 'google';
+
   const handleDeleteAccount = async () => {
-    if (!deletePassword) { toast.error('Please enter your password'); return; }
+    if (!isGoogleUser && !deletePassword) { toast.error('Please enter your password'); return; }
     setDeleting(true);
-    try { await deleteAccount(deletePassword); toast.success('Account deleted'); logout(); window.location.href = '/'; }
-    catch (err) { toast.error(err.response?.data?.message || 'Failed to delete account'); }
+    try { await deleteAccount(isGoogleUser ? undefined : deletePassword); toast.success('Account deleted'); logout(); window.location.href = '/'; }
+    catch (err) { console.warn('Account deletion failed:', err); toast.error(err.response?.data?.message || 'Failed to delete account'); }
     finally { setDeleting(false); }
   };
 
@@ -221,29 +223,35 @@ const SettingsView = () => {
           </p>
         </div>
 
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Confirm your password</label>
-          <div className="relative">
-            <input
-              type={showDeletePassword ? 'text' : 'password'}
-              value={deletePassword}
-              onChange={(e) => setDeletePassword(e.target.value)}
-              placeholder="Enter password"
-              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400 pr-10"
-            />
-            <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-              {showDeletePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
+        {isGoogleUser ? (
+          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            Click "Delete forever" to confirm deletion of your Google-linked account.
+          </p>
+        ) : (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Confirm your password</label>
+            <div className="relative">
+              <input
+                type={showDeletePassword ? 'text' : 'password'}
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400 pr-10"
+              />
+              <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                {showDeletePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
           <button onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
             className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
             Cancel
           </button>
-          <button onClick={handleDeleteAccount} disabled={deleting || !deletePassword}
+          <button onClick={handleDeleteAccount} disabled={deleting || (!isGoogleUser && !deletePassword)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-40">
             {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             {deleting ? 'Deleting...' : 'Delete forever'}

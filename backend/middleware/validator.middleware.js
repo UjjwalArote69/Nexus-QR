@@ -36,8 +36,12 @@ export const createQRSchema = z.object({
     body: z.object({
         qrType: z.string().min(1, "QR type is required"),
         title: z.string().max(255).optional(),
-        targetUrl: z.string().url("Invalid URL").optional().or(z.literal('')).or(z.literal(undefined)),
-        content: z.any().optional(),
+        targetUrl: z.string().optional().or(z.literal('')).or(z.literal(undefined)),
+        // BUG-014 fix: validate content size to prevent database bloat
+        content: z.any().optional().refine(
+            (val) => val === undefined || val === null || JSON.stringify(val).length <= 50000,
+            { message: "Content exceeds maximum allowed size (50KB)" }
+        ),
         description: z.string().max(500).optional(),
         expiresAt: z.string().datetime().optional().nullable(),
         maxScans: z.number().int().positive().optional().nullable(),
@@ -56,7 +60,10 @@ export const updateQRSchema = z.object({
         description: z.string().max(500).optional().nullable(),
         expiresAt: z.string().datetime().optional().nullable(),
         maxScans: z.number().int().positive().optional().nullable(),
-        content: z.any().optional(),
+        content: z.any().optional().refine(
+            (val) => val === undefined || val === null || JSON.stringify(val).length <= 50000,
+            { message: "Content exceeds maximum allowed size (50KB)" }
+        ),
         folderId: z.string().uuid().optional().nullable(),
     }),
 });

@@ -10,6 +10,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Store & Wrapper
 import useAuthStore from "./store/authStore";
@@ -60,7 +61,10 @@ const App = () => {
     checkAuth();
   }, [checkAuth]);
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
   return (
+    <GoogleOAuthProvider clientId={googleClientId || ""}>
     <Router>
       <Toaster
         position="top-right"
@@ -122,6 +126,7 @@ const App = () => {
       </Suspense>
       </ErrorBoundary>
     </Router>
+    </GoogleOAuthProvider>
   );
 };
 

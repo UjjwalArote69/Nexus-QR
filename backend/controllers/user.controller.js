@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import User from '../models/user.model.js';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import logger from '../config/logger.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../config/email.js';
 
@@ -13,6 +14,16 @@ const generateAccessToken = (id) => {
 const generateRefreshToken = (id) => {
     return jwt.sign({ id, type: 'refresh' }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
+
+// Return only safe user fields (never expose password hash)
+const safeUser = (user) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    isVerified: user.isVerified,
+    authProvider: user.authProvider,
+    createdAt: user.createdAt,
+});
 
 const refreshCookieOptions = {
     httpOnly: true,
@@ -44,7 +55,7 @@ export const register = async (req, res) => {
         logger.info('User registered', { userId: user.id, email });
 
         res.cookie('refreshToken', refreshToken, refreshCookieOptions);
-        res.status(201).json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, isVerified: false } });
+        res.status(201).json({ success: true, token, user: safeUser(user) });
     } catch (error) {
         logger.error('Registration failed', { email: req.body?.email, error: error.message });
         res.status(500).json({ message: 'Server error during registration' });
@@ -58,6 +69,10 @@ export const login = async (req, res) => {
 
         if (!user || !(await user.comparePassword(password))) {
             logger.warn('Failed login attempt', { email, ip: req.ip });
+            // If user exists but signed up via Google (no password), hint at OAuth
+            if (user && !user.password && user.authProvider === 'google') {
+                return res.status(401).json({ message: 'This account uses Google sign-in. Please use "Continue with Google" instead.' });
+            }
             return res.status(401).json({ message: 'Invalid email or password' });
         }
 
@@ -66,16 +81,93 @@ export const login = async (req, res) => {
         logger.info('User logged in', { userId: user.id, email });
 
         res.cookie('refreshToken', refreshToken, refreshCookieOptions);
-        res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email } });
+        res.json({ success: true, token, user: safeUser(user) });
     } catch (error) {
         logger.error('Login failed', { email: req.body?.email, error: error.message });
         res.status(500).json({ message: 'Server error during login' });
     }
 };
 
+export const googleLogin = async (req, res) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) {
+            return res.status(400).json({ message: 'Google credential is required' });
+        }
+
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        if (!clientId) {
+            logger.error('GOOGLE_CLIENT_ID is not configured');
+            return res.status(500).json({ message: 'Google OAuth is not configured on this server' });
+        }
+
+        const client = new OAuth2Client(clientId);
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: clientId,
+        });
+        const payload = ticket.getPayload();
+
+        const { sub: googleId, email, name, email_verified } = payload;
+
+        // Check if user exists by googleId or email
+        let user = await User.findOne({ where: { googleId } });
+
+        if (!user) {
+            // Check if a local account with this email exists
+            user = await User.findOne({ where: { email } });
+
+            if (user) {
+                // Link Google account to existing local user
+                user.googleId = googleId;
+                user.authProvider = 'google';
+                if (!user.isVerified && email_verified) {
+                    user.isVerified = true;
+                    user.verificationToken = null;
+                }
+                await user.save();
+                logger.info('Google account linked to existing user', { userId: user.id, email });
+            } else {
+                // Create new user via Google
+                user = await User.create({
+                    name: name || email.split('@')[0],
+                    email,
+                    googleId,
+                    authProvider: 'google',
+                    password: null,
+                    isVerified: !!email_verified,
+                });
+                logger.info('User registered via Google', { userId: user.id, email });
+            }
+        } else {
+            // Existing Google user — update verified status if needed
+            if (!user.isVerified && email_verified) {
+                user.isVerified = true;
+                user.verificationToken = null;
+                await user.save();
+            }
+        }
+
+        const token = generateAccessToken(user.id);
+        const refreshToken = generateRefreshToken(user.id);
+
+        logger.info('Google login successful', { userId: user.id, email });
+
+        res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+        res.json({
+            success: true,
+            token,
+            user: safeUser(user),
+        });
+    } catch (error) {
+        logger.error('Google login failed', { error: error.message });
+        res.status(401).json({ message: 'Google authentication failed' });
+    }
+};
+
 export const getProfile = async (req, res) => {
     if (req.user) {
-        res.json({ success: true, user: req.user });
+        res.json({ success: true, user: safeUser(req.user) });
     } else {
         res.status(404).json({ message: 'User not found' });
     }
@@ -100,7 +192,7 @@ export const updateProfile = async (req, res) => {
 
         res.json({
             success: true,
-            user: { id: user.id, name: user.name, email: user.email },
+            user: safeUser(user),
         });
     } catch (error) {
         logger.error('Profile update failed', { userId: req.user?.id, error: error.message });
@@ -114,6 +206,10 @@ export const changePassword = async (req, res) => {
         const user = await User.findByPk(req.user.id);
 
         if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (!user.password) {
+            return res.status(400).json({ message: 'Your account uses Google sign-in and has no password set. Enter a new password to set one.' });
+        }
 
         const isMatch = await user.comparePassword(currentPassword);
         if (!isMatch) return res.status(401).json({ message: 'Current password is incorrect' });
@@ -140,8 +236,12 @@ export const deleteAccount = async (req, res) => {
 
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) return res.status(401).json({ message: 'Password is incorrect' });
+        // Google OAuth users can delete without a password
+        if (user.password) {
+            if (!password) return res.status(400).json({ message: 'Password is required' });
+            const isMatch = await user.comparePassword(password);
+            if (!isMatch) return res.status(401).json({ message: 'Password is incorrect' });
+        }
 
         const userId = user.id;
         await user.destroy();
@@ -177,7 +277,10 @@ export const forgotPassword = async (req, res) => {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-        await sendPasswordResetEmail(email, resetUrl);
+        // BUG-012 fix: send email asynchronously to prevent timing attacks
+        sendPasswordResetEmail(email, resetUrl).catch(err =>
+            logger.error('Failed to send password reset email', { email, error: err.message })
+        );
         logger.info('Password reset requested', { email });
 
         res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });

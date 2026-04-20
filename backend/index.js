@@ -34,15 +34,15 @@ import './models/scanEvent.model.js';
 import './models/template.model.js';
 
 // Setup Folder <-> QRCode relationship (both models are loaded now, no circular dep)
-Folder.hasMany(QRCode, { foreignKey: 'folderId', as: 'qrcodes', constraints: false });
-QRCode.belongsTo(Folder, { foreignKey: 'folderId', as: 'folder', constraints: false });
+// BUG-016 fix: enable constraints for referential integrity, use SET NULL on delete
+Folder.hasMany(QRCode, { foreignKey: 'folderId', as: 'qrcodes', onDelete: 'SET NULL' });
+QRCode.belongsTo(Folder, { foreignKey: 'folderId', as: 'folder' });
 
 // Validate JWT secret on startup
 const UNSAFE_SECRETS = ['your_super_secret_key_here', 'CHANGE_ME_GENERATE_A_RANDOM_64_BYTE_HEX_SECRET', ''];
 if (UNSAFE_SECRETS.includes(process.env.JWT_SECRET)) {
   if (process.env.NODE_ENV === 'production') {
-    console.error('FATAL: JWT_SECRET is not set or uses a placeholder. Generate one with:');
-    console.error('  node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+    logger.error('FATAL: JWT_SECRET is not set or uses a placeholder. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
     process.exit(1);
   } else {
     logger.warn('JWT_SECRET is using a placeholder value. Do NOT use this in production.');
@@ -89,7 +89,23 @@ io.on('connection', (socket) => {
   socket.join(`user:${socket.userId}`);
   logger.debug('User joined room', { userId: socket.userId, socketId: socket.id });
 
+  // BUG-006 fix: periodically re-verify JWT to disconnect expired sessions
+  const reVerifyInterval = setInterval(() => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      socket.disconnect(true);
+      return;
+    }
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      logger.debug('Socket JWT expired, disconnecting', { socketId: socket.id, userId: socket.userId });
+      socket.disconnect(true);
+    }
+  }, 5 * 60 * 1000); // Re-verify every 5 minutes
+
   socket.on('disconnect', () => {
+    clearInterval(reVerifyInterval);
     logger.debug('Socket disconnected', { socketId: socket.id });
   });
 });
@@ -106,6 +122,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Security headers via Helmet (includes HSTS in production)
 app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // <-- ADD THIS LINE
   hsts: process.env.NODE_ENV === 'production'
     ? { maxAge: 31536000, includeSubDomains: true, preload: true }
     : false,
@@ -208,14 +225,12 @@ connectDB();
 
 const syncOptions = process.env.NODE_ENV === 'production'
   ? { alter: false }
-  : { alter: false };
+  : { alter: true };
 
 sequelize.sync(syncOptions).then(() => {
   httpServer.listen(PORT, () => logger.info(`Klink Server running on port ${PORT}`));
 }).catch((err) => {
-  console.error('=== DATABASE SYNC ERROR ===');
-  console.error('Message:', err.message);
-  console.error('SQL:', err.sql);
-  console.error('Original:', err.original?.message);
+  // BUG-022 fix: use logger instead of console.error
+  logger.error('DATABASE SYNC ERROR', { message: err.message, sql: err.sql, original: err.original?.message });
   process.exit(1);
 });

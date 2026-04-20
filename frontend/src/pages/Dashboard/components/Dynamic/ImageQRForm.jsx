@@ -1,63 +1,37 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useState, useContext, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useQRStore from '../../../../store/qrStore';
-import { BuilderContext } from '../../Dashboard';
-import { 
-  ArrowLeft, Image as ImageIcon, AlertCircle, UploadCloud, 
-  Settings2, Palette, ChevronDown, Check, X, Link as LinkIcon
-} from 'lucide-react';
-import TemplatePicker from '../TemplatePicker';
+import { Image as ImageIcon, UploadCloud, X, Link as LinkIcon } from 'lucide-react';
+import { FormShell, Section, DesignSection, SettingsSection, Field, inputWithIconClass, useFormSections } from '../FormKit';
+import usePageTitle from '../../../../hooks/usePageTitle';
 
 const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
-  const { builderStep, setBuilderStep } = useContext(BuilderContext);
-  
-  // 1. Pull common state and actions from the store
-  const { 
-    title, setTitle, 
-    fgColor, setFgColor, 
-    bgColor, setBgColor, 
-    isLoading, error, setError,
-    createQRCode, createQRWithFileAction
-  } = useQRStore();
+  usePageTitle('Image QR');
+  const { fgColor, bgColor, title, dotStyle, cornerSquareStyle, logoDataUrl, isLoading, error, setError, setTitle, createQRCode, createQRWithFileAction } = useQRStore();
 
-  // 2. Keep ONLY type-specific state local
   const [file, setFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null); 
-  const [imageUrl, setImageUrl] = useState(''); 
-  const [uploadMode, setUploadMode] = useState('file'); 
-  const [openSections, setOpenSections] = useState({ content: true, design: false, settings: false });
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadMode, setUploadMode] = useState('file');
+  const { openSections, toggle } = useFormSections();
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (builderStep === 2) setOpenSections(prev => ({ ...prev, content: true }));
-    if (builderStep === 3) setOpenSections(prev => ({ ...prev, design: true }));
-  }, [builderStep]);
-
-  // Live preview updates
-  useEffect(() => {
-    if (onLiveUpdate) {
-      const displayUrl = imageUrl || (file ? 'https://klink.com/preview-image' : '');
-      onLiveUpdate({ url: displayUrl, fgColor, bgColor, title });
-    }
-  }, [file, imageUrl, fgColor, bgColor, title]);
-
-  const toggleSection = (section) => {
-    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
+    const displayUrl = imageUrl || (file ? 'https://klink.com/preview-image' : '');
+    onLiveUpdate?.({ url: displayUrl, fgColor, bgColor, title, dotStyle, cornerSquareStyle, logoDataUrl });
+  }, [file, imageUrl, fgColor, bgColor, title, dotStyle, cornerSquareStyle, logoDataUrl]);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      
       if (!selectedFile.type.startsWith('image/')) {
         setError('Please select a valid image file (JPG, PNG, WEBP).');
         return;
       }
-      if (selectedFile.size > 10 * 1024 * 1024) { 
+      if (selectedFile.size > 10 * 1024 * 1024) {
         setError('File size must be less than 10MB.');
         return;
       }
-      
       setFile(selectedFile);
       setPreviewUrl(URL.createObjectURL(selectedFile));
       setError(null);
@@ -65,11 +39,8 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
     }
   };
 
-  // Cleanup object URL on unmount or when preview changes
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
 
   const clearFile = () => {
@@ -80,31 +51,16 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (uploadMode === 'file' && !file) {
-      setError("Please upload an image file");
-      setOpenSections(prev => ({ ...prev, content: true }));
-      return;
-    }
-    if (uploadMode === 'url' && !imageUrl) {
-      setError("Please enter an image URL");
-      setOpenSections(prev => ({ ...prev, content: true }));
-      return;
-    }
-
+    e?.preventDefault();
+    if (uploadMode === 'file' && !file) { setError('Please upload an image file'); return; }
+    if (uploadMode === 'url' && !imageUrl) { setError('Please enter an image URL'); return; }
     setError(null);
 
     let result;
-
     if (uploadMode === 'file') {
       result = await createQRWithFileAction(file, title || 'My Image QR', 'Images');
     } else {
-      result = await createQRCode({
-        title: title || 'My Image QR',
-        qrType: 'Images',
-        targetUrl: imageUrl,
-      });
+      result = await createQRCode({ title: title || 'My Image QR', qrType: 'Images', targetUrl: imageUrl });
     }
 
     if (result.success) {
@@ -116,214 +72,55 @@ const ImageQRForm = ({ onBack, onGenerated, onLiveUpdate }) => {
   };
 
   return (
-    <div className="flex flex-col h-full relative">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 -ml-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+    <FormShell icon={ImageIcon} iconColor="text-indigo-500" label="Image QR" accentColor="indigo" onBack={onBack} onSubmit={handleSubmit} isLoading={isLoading} disabled={(uploadMode === 'file' && !file) || (uploadMode === 'url' && !imageUrl)} error={error}>
+      <Section icon={ImageIcon} title="Content" subtitle="Upload your image" isOpen={openSections.content} onToggle={() => toggle('content')} accentColor="indigo">
+        {/* Tabs */}
+        <div className="flex p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg w-full max-w-sm">
+          <button onClick={() => setUploadMode('file')} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${uploadMode === 'file' ? 'bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+            Upload Image
           </button>
-          <div className="flex items-center gap-2 text-slate-800 dark:text-white font-medium">
-            <ImageIcon className="w-5 h-5 text-indigo-500" />
-            Image QR
-          </div>
+          <button onClick={() => setUploadMode('url')} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${uploadMode === 'url' ? 'bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+            External Link
+          </button>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 space-y-4 bg-slate-50 dark:bg-slate-950/50">
-        {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start text-red-600 dark:text-red-400">
-            <AlertCircle className="w-5 h-5 mr-3 shrink-0 mt-0.5" />
-            <p className="text-sm font-medium">{error}</p>
-          </div>
+        {uploadMode === 'file' ? (
+          <Field label="Upload Photo" required>
+            {!file ? (
+              <div onClick={() => fileInputRef.current.click()} className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 bg-white dark:bg-slate-950 rounded-xl p-8 text-center cursor-pointer transition-colors group">
+                <input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Click to browse or drag and drop</p>
+                <p className="text-xs text-slate-500">JPG, PNG, or WEBP up to 10MB</p>
+              </div>
+            ) : (
+              <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950">
+                <div className="h-40 w-full bg-slate-100 dark:bg-slate-900 relative flex justify-center">
+                  <img src={previewUrl} alt="Preview" className="h-full max-w-full object-contain" />
+                  <button onClick={clearFile} className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-red-500 text-white rounded-md backdrop-blur-sm transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <div className="truncate pr-4">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{file.name}</p>
+                    <p className="text-xs text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Field>
+        ) : (
+          <Field label="Direct Image URL" required icon={LinkIcon}>
+            <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/photo.jpg" className={inputWithIconClass('indigo')} required />
+          </Field>
         )}
-
-        {/* SECTION 1: CONTENT */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.content ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => toggleSection('content')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSections.content ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                <ImageIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white text-base">1. Content</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Upload your image</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.content ? 'rotate-180 text-indigo-500' : ''}`} />
-          </button>
-          
-          {openSections.content && (
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
-              
-              <div className="flex p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg w-full max-w-sm">
-                <button 
-                  onClick={() => setUploadMode('file')}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${uploadMode === 'file' ? 'bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  Upload Image
-                </button>
-                <button 
-                  onClick={() => setUploadMode('url')}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${uploadMode === 'url' ? 'bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  External Link
-                </button>
-              </div>
-
-              {uploadMode === 'file' ? (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Upload Photo <span className="text-indigo-500">*</span></label>
-                  {!file ? (
-                    <div 
-                      onClick={() => fileInputRef.current.click()}
-                      className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 bg-white dark:bg-slate-950 rounded-xl p-8 text-center cursor-pointer transition-colors group"
-                    >
-                      <input 
-                        type="file" 
-                        accept="image/png, image/jpeg, image/jpg, image/webp" 
-                        className="hidden" 
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                      />
-                      <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <UploadCloud className="w-6 h-6" />
-                      </div>
-                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Click to browse or drag and drop</p>
-                      <p className="text-xs text-slate-500">JPG, PNG, or WEBP up to 10MB</p>
-                    </div>
-                  ) : (
-                    <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950">
-                      <div className="h-40 w-full bg-slate-100 dark:bg-slate-900 relative flex justify-center">
-                        <img src={previewUrl} alt="Preview" className="h-full max-w-full object-contain" />
-                        <button 
-                          onClick={clearFile}
-                          className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-red-500 text-white rounded-md backdrop-blur-sm transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                        <div className="truncate pr-4">
-                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{file.name}</p>
-                          <p className="text-xs text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Direct Image URL <span className="text-indigo-500">*</span></label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <LinkIcon className="h-5 w-5 text-slate-400" />
-                    </div>
-                    <input 
-                      type="url" 
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://example.com/photo.jpg" 
-                      className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
-                      required={uploadMode === 'url'}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* SECTION 2: DESIGN */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.design ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => toggleSection('design')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSections.design ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                <Palette className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white text-base">2. Design</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Customize colors</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.design ? 'rotate-180 text-indigo-500' : ''}`} />
-          </button>
-          
-          {openSections.design && (
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
-              <TemplatePicker />
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Color</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={fgColor} onChange={(e) => setFgColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                    <input type="text" value={fgColor} onChange={(e) => setFgColor(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Background</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                    <input type="text" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white uppercase text-sm" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* SECTION 3: SETTINGS */}
-        <div className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${openSections.settings ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' : 'border-slate-200 dark:border-slate-800'}`}>
-          <button type="button" onClick={() => toggleSection('settings')} className="w-full flex items-center justify-between p-5 text-left bg-transparent">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${openSections.settings ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                <Settings2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white text-base">3. Settings</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Name your campaign</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openSections.settings ? 'rotate-180 text-indigo-500' : ''}`} />
-          </button>
-          
-          {openSections.settings && (
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-5 animate-in slide-in-from-top-2 duration-200">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">QR Code Name</label>
-                <input 
-                  type="text" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={100}
-                  placeholder="e.g., Spring Promo Flyer" 
-                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] flex justify-end">
-        <button 
-          onClick={handleSubmit}
-          disabled={isLoading || (uploadMode === 'file' && !file) || (uploadMode === 'url' && !imageUrl)}
-          className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-        >
-          {isLoading ? (
-             <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-             </svg>
-          ) : (
-            <Check className="w-5 h-5" />
-          )}
-          {isLoading ? 'Generating...' : 'Complete setup'}
-        </button>
-      </div>
-    </div>
+      </Section>
+      <DesignSection isOpen={openSections.design} onToggle={() => toggle('design')} accentColor="indigo" />
+      <SettingsSection isOpen={openSections.settings} onToggle={() => toggle('settings')} accentColor="indigo" />
+    </FormShell>
   );
 };
 

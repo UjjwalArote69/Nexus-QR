@@ -12,7 +12,12 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // BUG-018 fix: log structured error info for debugging
     console.error('ErrorBoundary caught:', error, errorInfo);
+    // Report to error tracking service if available
+    if (typeof window !== 'undefined' && window.__ERROR_REPORTER__) {
+      try { window.__ERROR_REPORTER__(error, errorInfo); } catch {}
+    }
   }
 
   handleReset = () => {

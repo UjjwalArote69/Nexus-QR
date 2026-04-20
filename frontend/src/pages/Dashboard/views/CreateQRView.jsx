@@ -3,6 +3,7 @@
 import React, { useState, useRef, useContext, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import QRGridSection from "../components/QRGridSection";
+import PhoneMockup from "../components/PhoneMockup";
 import WebsiteQRForm from "../components/Dynamic/WebsiteQRForm";
 import VCardQRForm from "../components/Dynamic/VCardQRForm";
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react";
@@ -11,12 +12,10 @@ import BuilderContext from "../../../context/BuilderContext";
 import PdfQRForm from "../components/Dynamic/PdfQRForm";
 import VideoQRForm from "../components/Dynamic/VideoQRForm";
 import {
-  Globe, FileText, ImageIcon, UserSquare, Video, AlignJustify,
-  Smile, Music, Building2, Ticket, Smartphone, Monitor,
-  Type, Mail, MessageSquare, Wifi,
   Download, ChevronDown, CheckCircle2, Copy, QrCode, Eye, X,
   FileImage, FileCode2, Image, ArrowLeft, Sparkles,
 } from "lucide-react";
+import { dynamicTypes, staticTypes } from "../../../data/qrTypes";
 import ImageQRForm from "../components/Dynamic/ImageQRForm";
 import LinksQRForm from "../components/Dynamic/LinksQRForm";
 import SocialQRForm from "../components/Dynamic/SocialQRForm";
@@ -89,28 +88,9 @@ const CreateQRView = () => {
     toast.success("Copied"); setTimeout(() => setCopiedLink(false), 2000);
   }, [generatedLink]);
 
-  const dynamicTypes = [
-    { name: "Website", desc: "Open a URL", icon: Globe, color: "#3b82f6" },
-    { name: "PDF", desc: "Show a PDF file", icon: FileText, color: "#ef4444" },
-    { name: "Images", desc: "Display an image gallery", icon: ImageIcon, color: "#6366f1" },
-    { name: "vCard Plus", desc: "Share contact details", icon: UserSquare, color: "#10b981" },
-    { name: "Video", desc: "Show a video", icon: Video, color: "#f43f5e" },
-    { name: "List of links", desc: "Group multiple links", icon: AlignJustify, color: "#d946ef" },
-    { name: "Social Media", desc: "Share social profiles", icon: Smile, color: "#0ea5e9" },
-    { name: "MP3", desc: "Play an audio file", icon: Music, color: "#f59e0b" },
-    { name: "Business", desc: "Business information", icon: Building2, color: "#3b82f6" },
-    { name: "Coupon", desc: "Share a discount coupon", icon: Ticket, color: "#f97316" },
-    { name: "Apps", desc: "Redirect to app stores", icon: Smartphone, color: "#14b8a6" },
-    { name: "Landing page", desc: "Create a custom page", icon: Monitor, color: "#f97316" },
-  ];
-  const staticTypes = [
-    { name: "Text", desc: "Display plain text", icon: Type, color: "#3b82f6" },
-    { name: "Email", desc: "Compose an email", icon: Mail, color: "#3b82f6" },
-    { name: "SMS", desc: "Send a text message", icon: MessageSquare, color: "#22c55e" },
-    { name: "Wi-Fi", desc: "Connect to a network", icon: Wifi, color: "#3b82f6" },
-  ];
+  const blank = { url: "", fgColor: "#000000", bgColor: "#ffffff", dotStyle: "square", cornerSquareStyle: "square", cornerDotStyle: "square", logoDataUrl: null, meta: {} };
 
-  const blank = { url: "", fgColor: "#000000", bgColor: "#ffffff", dotStyle: "square", cornerSquareStyle: "square", cornerDotStyle: "square", logoDataUrl: null };
+  const [hoveredType, setHoveredType] = useState(null);
 
   const handleTypeSelect = (type) => { setSelectedType(type); setBuilderStep(2); setGeneratedLink(null); setCopiedLink(false); setLivePreview(blank); };
   const handleBack = () => { resetStore(); setSelectedType(null); setBuilderStep(1); setGeneratedLink(null); setCopiedLink(false); setLivePreview(blank); setMobilePreviewOpen(false); };
@@ -147,113 +127,117 @@ const CreateQRView = () => {
     );
   };
 
-  // ─── Preview Panel ───
-  const PreviewContent = ({ compact = false }) => {
-    const qrSize = compact ? 180 : 220;
+  // ─── Preview Panel (mobile bottom-sheet only) ───
+  const MobilePreview = () => {
+    const qrSize = 180;
     return (
-      <div className={`flex flex-col items-center ${compact ? 'py-6' : 'py-10'} px-6 w-full`}>
-
-        {/* Preview label */}
-        {!compact && (
-          <div className="w-full max-w-[360px] mb-5">
-            <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Live Preview</p>
+      <div className="flex flex-col items-center py-6 px-6 w-full">
+        <div className="w-full max-w-[300px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col items-center">
+          <div className="rounded-xl overflow-hidden p-3 mb-4" style={{ backgroundColor: livePreview.bgColor }}>
+            {advanced ? (
+              <StyledQRCode value={qrValue} size={qrSize} fgColor={livePreview.fgColor} bgColor={livePreview.bgColor}
+                dotStyle={livePreview.dotStyle || 'square'} cornerSquareStyle={livePreview.cornerSquareStyle || 'square'} logoDataUrl={livePreview.logoDataUrl} />
+            ) : (
+              <QRCodeSVG value={qrValue} size={qrSize} level="H" fgColor={livePreview.fgColor} bgColor={livePreview.bgColor} includeMargin={false} />
+            )}
           </div>
-        )}
-
-        {/* QR Preview Card */}
-        <div className={`w-full ${compact ? 'max-w-[300px]' : 'max-w-[360px]'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 flex flex-col items-center`}>
-          {selectedType ? (
-            <>
-              {/* QR Code */}
-              <div className="rounded-xl overflow-hidden p-3 mb-5" style={{ backgroundColor: livePreview.bgColor }}>
-                {advanced ? (
-                  <StyledQRCode value={qrValue} size={qrSize} fgColor={livePreview.fgColor} bgColor={livePreview.bgColor}
-                    dotStyle={livePreview.dotStyle || 'square'} cornerSquareStyle={livePreview.cornerSquareStyle || 'square'} logoDataUrl={livePreview.logoDataUrl} />
-                ) : (
-                  <QRCodeSVG value={qrValue} size={qrSize} level="H" fgColor={livePreview.fgColor} bgColor={livePreview.bgColor} includeMargin={false} />
-                )}
-              </div>
-
-              {/* Type name */}
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-3">{selectedType.name}</p>
-
-              {/* Status */}
-              {generatedLink ? (
-                <div className="flex flex-col items-center gap-2.5 w-full">
-                  <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> QR code ready
-                  </span>
-                  <button onClick={handleCopyLink}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
-                    {copiedLink ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
-                    <span className="truncate">{copiedLink ? 'Copied!' : generatedLink}</span>
-                  </button>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-300 dark:text-slate-600">
-                  {livePreview.url ? 'Previewing live changes' : 'Fill in the form to preview'}
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="py-14 flex flex-col items-center gap-4">
-              <QrCode className="w-16 h-16 text-slate-200 dark:text-slate-700" strokeWidth={0.8} />
-              <p className="text-sm text-slate-400 dark:text-slate-500">Select a QR type to start</p>
+          {generatedLink ? (
+            <div className="flex flex-col items-center gap-2 w-full">
+              <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Ready</span>
+              <button onClick={handleCopyLink} className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs text-slate-500">
+                {copiedLink ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="truncate">{copiedLink ? 'Copied!' : generatedLink}</span>
+              </button>
             </div>
+          ) : (
+            <p className="text-xs text-slate-400">{livePreview.url ? 'Live preview' : 'Fill form to preview'}</p>
           )}
         </div>
+        <div className="mt-4 w-full max-w-[300px]">
+          <button onClick={() => downloadAsPNG(1024)} disabled={!canDownload}
+            className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl disabled:opacity-20">
+            <Download className="w-4 h-4" /> Download PNG
+          </button>
+        </div>
+      </div>
+    );
+  };
 
-        {/* Download Actions */}
-        {selectedType && (
-          <div className={`mt-6 w-full ${compact ? 'max-w-[300px]' : 'max-w-[360px]'}`} ref={formatMenuRef}>
-            <div className="relative">
-              <div className="flex rounded-xl overflow-hidden">
-                <button
-                  onClick={() => downloadAsPNG(1024)}
-                  disabled={!canDownload}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                >
-                  <Download className="w-4 h-4" /> Download PNG
-                </button>
-                <button
-                  onClick={() => setShowFormatMenu(v => !v)}
-                  disabled={!canDownload}
-                  className="px-4 bg-slate-800 dark:bg-slate-200 text-white/60 dark:text-slate-500 border-l border-slate-700 dark:border-slate-300 hover:text-white dark:hover:text-slate-900 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                >
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showFormatMenu ? 'rotate-180' : ''}`} />
+  // ─── Desktop right panel (phone mockup + QR + download in one flow) ───
+  const DesktopPreview = () => {
+    const qrSize = 160;
+    return (
+      <div className="flex flex-col items-center py-6 px-6 w-full">
+        {/* Phone mockup — compact in form mode */}
+        <PhoneMockup activeType={selectedType} meta={livePreview.meta} title="Content Preview" compact />
+
+        {/* QR Code section */}
+        <div className="w-full max-w-[300px] mt-2">
+          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 text-center">QR Code</p>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col items-center">
+            <div className="rounded-lg overflow-hidden p-2 mb-3" style={{ backgroundColor: livePreview.bgColor }}>
+              {advanced ? (
+                <StyledQRCode value={qrValue} size={qrSize} fgColor={livePreview.fgColor} bgColor={livePreview.bgColor}
+                  dotStyle={livePreview.dotStyle || 'square'} cornerSquareStyle={livePreview.cornerSquareStyle || 'square'} logoDataUrl={livePreview.logoDataUrl} />
+              ) : (
+                <QRCodeSVG value={qrValue} size={qrSize} level="H" fgColor={livePreview.fgColor} bgColor={livePreview.bgColor} includeMargin={false} />
+              )}
+            </div>
+
+            {generatedLink ? (
+              <div className="flex flex-col items-center gap-2 w-full">
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Ready</span>
+                <button onClick={handleCopyLink} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-[11px] text-slate-500 hover:text-slate-700 transition-colors">
+                  {copiedLink ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  <span className="truncate">{copiedLink ? 'Copied!' : generatedLink}</span>
                 </button>
               </div>
+            ) : (
+              <p className="text-[11px] text-slate-300 dark:text-slate-600">{livePreview.url ? 'Previewing live changes' : 'Fill form to preview'}</p>
+            )}
+          </div>
 
-              <AnimatePresence>
-                {showFormatMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                    className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg z-30 py-1.5"
-                  >
-                    {[
-                      { label: 'PNG', sub: '1024 × 1024', action: () => downloadAsPNG(1024) },
-                      { label: 'PNG Hi-Res', sub: '2048 × 2048', action: () => downloadAsPNG(2048) },
-                      { label: 'SVG', sub: 'Vector format', action: downloadAsSVG },
-                    ].map((f) => (
-                      <button key={f.label} onClick={f.action}
-                        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <span className="text-sm text-slate-700 dark:text-slate-300">{f.label}</span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500">{f.sub}</span>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+          {/* Download */}
+          <div className="mt-3 relative" ref={formatMenuRef}>
+            <div className="flex rounded-lg overflow-hidden">
+              <button onClick={() => downloadAsPNG(1024)} disabled={!canDownload}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors disabled:opacity-20">
+                <Download className="w-3.5 h-3.5" /> Download PNG
+              </button>
+              <button onClick={() => setShowFormatMenu(v => !v)} disabled={!canDownload}
+                className="px-3 bg-slate-800 dark:bg-slate-200 text-white/60 dark:text-slate-500 border-l border-slate-700 dark:border-slate-300 hover:text-white dark:hover:text-slate-900 transition-colors disabled:opacity-20">
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFormatMenu ? 'rotate-180' : ''}`} />
+              </button>
             </div>
+
+            <AnimatePresence>
+              {showFormatMenu && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-lg z-30 py-1">
+                  {[
+                    { label: 'PNG', sub: '1024×1024', action: () => downloadAsPNG(1024) },
+                    { label: 'PNG Hi-Res', sub: '2048×2048', action: () => downloadAsPNG(2048) },
+                    { label: 'SVG', sub: 'Vector', action: downloadAsSVG },
+                  ].map((f) => (
+                    <button key={f.label} onClick={f.action}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-xs text-slate-700 dark:text-slate-300">{f.label}</span>
+                      <span className="text-[10px] text-slate-400">{f.sub}</span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {generatedLink && (
               <button onClick={handleCopyLink}
-                className="w-full mt-2.5 py-2.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl transition-colors text-center">
+                className="w-full mt-2 py-2 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-lg transition-colors text-center">
                 {copiedLink ? 'Copied to clipboard!' : 'Copy shareable link'}
               </button>
             )}
           </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -266,13 +250,34 @@ const CreateQRView = () => {
           <AnimatePresence mode="wait">
             {!selectedType ? (
               <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-                className="mx-auto px-8 py-10 sm:px-12 sm:py-12 max-w-5xl">
+                className="mx-auto px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12 max-w-4xl">
+                {/* Title */}
                 <div className="mb-10">
-                  <h1 className="text-2xl font-semibold text-slate-900 dark:text-white tracking-tight mb-2">Create QR Code</h1>
-                  <p className="text-base text-slate-400 dark:text-slate-500">Choose a type below to get started. Dynamic codes can be updated after printing.</p>
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                    Select a QR type
+                  </h1>
                 </div>
-                <QRGridSection title="Dynamic QR" badge="editable · with analytics" items={dynamicTypes} onSelectType={handleTypeSelect} />
-                <QRGridSection title="Static QR" badge="fixed content" items={staticTypes} onSelectType={handleTypeSelect} />
+
+                <QRGridSection
+                  title="Dynamic QR"
+                  badge="with tracking"
+                  badgeColor="emerald"
+                  subtitle="Update content in real time, without changing your code"
+                  items={dynamicTypes}
+                  selectedType={hoveredType}
+                  onSelectType={handleTypeSelect}
+                  onHoverType={setHoveredType}
+                />
+                <QRGridSection
+                  title="Static QR"
+                  badge="fixed content"
+                  badgeColor="slate"
+                  subtitle="Content is embedded directly — cannot be changed after printing"
+                  items={staticTypes}
+                  selectedType={hoveredType}
+                  onSelectType={handleTypeSelect}
+                  onHoverType={setHoveredType}
+                />
               </motion.div>
             ) : (
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
@@ -282,9 +287,13 @@ const CreateQRView = () => {
           </AnimatePresence>
         </div>
 
-        {/* Right — Preview */}
+        {/* Right — Preview / Phone Mockup */}
         <aside className="hidden xl:flex w-[420px] border-l border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 flex-col items-center shrink-0 overflow-y-auto">
-          <PreviewContent />
+          {selectedType ? (
+            <DesktopPreview />
+          ) : (
+            <PhoneMockup activeType={hoveredType} />
+          )}
         </aside>
 
         {/* Mobile FAB */}
@@ -314,7 +323,7 @@ const CreateQRView = () => {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <PreviewContent compact />
+                <MobilePreview />
               </motion.div>
             </>
           )}

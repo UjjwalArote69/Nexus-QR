@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import { create } from 'zustand';
-import { loginUser, registerUser, fetchProfile } from '../api/auth.api';
+import { loginUser, registerUser, fetchProfile, googleLoginUser } from '../api/auth.api';
 import { clearSessionToken } from '../utils/sessionToken';
 
 const useAuthStore = create((set) => ({
@@ -63,6 +63,30 @@ const useAuthStore = create((set) => ({
     }
   },
 
+  googleLogin: async (credential) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await googleLoginUser(credential);
+
+      localStorage.setItem('token', data.token);
+      clearSessionToken();
+
+      set({
+        user: data.user,
+        token: data.token,
+        isAuthenticated: true,
+        isLoading: false
+      });
+      return { success: true };
+    } catch (error) {
+      set({
+        error: error.response?.data?.message || 'Google login failed. Please try again.',
+        isLoading: false
+      });
+      return { success: false };
+    }
+  },
+
   checkAuth: async () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -74,8 +98,7 @@ const useAuthStore = create((set) => ({
       const data = await fetchProfile();
       set({ user: data.user, isAuthenticated: true, isLoading: false });
     } catch (error) {
-      // ADD THIS CONSOLE LOG TO CATCH THE CULPRIT:
-      console.error("Auth Check Failed:", error.response?.data || error.message);
+      // BUG-022 fix: remove debug console.error from production code
       
       localStorage.removeItem('token');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });

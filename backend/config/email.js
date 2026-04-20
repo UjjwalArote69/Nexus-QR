@@ -26,6 +26,8 @@ const FROM_ADDRESS = process.env.SMTP_FROM || 'Klink <noreply@klink.io>';
 /**
  * Send an email. Falls back to console logging when SMTP isn't configured.
  */
+export const isSmtpReady = () => isMailConfigured;
+
 export const sendEmail = async ({ to, subject, html }) => {
   if (isMailConfigured) {
     await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
